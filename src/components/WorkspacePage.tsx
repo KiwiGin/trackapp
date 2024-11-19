@@ -153,21 +153,23 @@ export default function WorkpacePage({ workspace }: { workspace: Workspace }) {
               <div className="grid grid-cols-4 gap-4">
                 {proyectos.map((project, index) => (
                   <div
-                    key={index}
-                    className="bg-white border border-gray-200 rounded-lg shadow-md overflow-hidden"
-                  >
-                    <Image
-                      src={"/workspace_default.jpg"}
-                      alt={project.nombre}
-                      width={300}
-                      height={200}
-                      className="object-cover w-full h-48"
-                    />
-                    <div className="p-4">
-                      <h3 className="text-lg font-semibold">{project.nombre}</h3>
-                      <p className="text-sm text-gray-500">Created by {project.creadoPor}</p>
-                    </div>
+                  key={index}
+                  onClick={() => router.push(`/workspace/${workspace.idWorkspace}/projects/${project.idProyecto}`)}
+                  className="bg-white border border-gray-200 rounded-lg shadow-md overflow-hidden cursor-pointer transform transition-transform hover:scale-105 hover:shadow-lg"
+                >
+                  <Image
+                    src={"/workspace_default.jpg"}
+                    alt={project.nombre}
+                    width={300}
+                    height={200}
+                    className="object-cover w-full h-48"
+                  />
+                  <div className="p-4">
+                    <h3 className="text-lg font-semibold">{project.nombre}</h3>
+                    <p className="text-sm text-gray-500">Created by {project.creadoPor}</p>
                   </div>
+                </div>
+                
                 ))}
               </div>
             </div>

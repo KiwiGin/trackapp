@@ -1,7 +1,7 @@
-import { db, storage } from '@/lib/firebase';	
+import { db} from '@/lib/firebase';	
 import { v4 as uuidv4 } from "uuid";
 import { collection, query, where, getDocs, doc, getDoc, setDoc, arrayUnion, documentId } from 'firebase/firestore';
-import { uploadBytes, getDownloadURL, ref } from "firebase/storage";
+// import { uploadBytes, getDownloadURL, ref } from "firebase/storage";
 import { Usuario } from '@/types/Usuario';
 import { Workspace } from '@/types/Workspace';
 import { Proyecto } from '@/types/Proyecto';
@@ -110,6 +110,18 @@ export async function getProyectosByIdWorkspace(idWorkspace: string): Promise<Pr
     }
 
     return proyectos;
+}
+
+// Obtener proyecto por ID
+export async function getProyectoById(idProyecto: string): Promise<Proyecto> {
+    const proyectoRef = doc(db, "Proyecto", idProyecto);
+    const proyectoSnapshot = await getDoc(proyectoRef);
+
+    if (!proyectoSnapshot.exists()) {
+        throw new Error("No existe el proyecto");
+    }
+
+    return { idProyecto: idProyecto, ...proyectoSnapshot.data() } as Proyecto;
 }
 
 
