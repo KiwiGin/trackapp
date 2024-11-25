@@ -154,10 +154,12 @@ export async function createTeam(team: Omit<Equipo, 'idEquipo'>) {
     return teamRef.id;
 }
 
-//obtener equipo por idUsuario
+//obtener equipos por idUsuario
 export async function getEquiposByIdUsuario(idUsuario: string):Promise<Equipo[]>{
     const equiposRef = collection(db, "Equipo");
-    const q = query(equiposRef, where("miembros", "array-contains", {idUsuario: idUsuario}));
-    const equiposSnapshot = await getDocs(q);
-    return equiposSnapshot.docs.map(doc => ({idEquipo: doc.id, ...doc.data()} as Equipo));
+    const equiposSnapshot = await getDocs(equiposRef);
+    if(equiposSnapshot.empty){
+        throw new Error('No hay equipos');
+    }
+    return equiposSnapshot.docs.map(doc => ({idEquipo: doc.id, ...doc.data()} as Equipo)).filter(equipo => equipo.miembros.some((m: { idUsuario: string }) => m.idUsuario === idUsuario));
 }

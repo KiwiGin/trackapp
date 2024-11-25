@@ -25,7 +25,7 @@ import { getUserIdByEmail, getUsuariosById } from '@/lib/firebaseUtils'
 import { Avatar, AvatarFallback, AvatarImage } from '@radix-ui/react-avatar'
 import { Usuario } from '@/types/Usuario'
 
-export default function ModalTeam({
+export default function ModalTask({
     open,
     onOpenChange,
     handleCreate,
