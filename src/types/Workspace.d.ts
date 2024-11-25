@@ -1,7 +1,7 @@
 export interface Workspace{
     idWorkspace?: string;
-    idEquipo: string;
+    idEquipo?: string;
     nombre: string;
-    idProyectos: string[];
+    idProyectos?: string[];
     idUsuarios: string[];
 }

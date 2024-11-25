@@ -5,6 +5,7 @@ import { collection, query, where, getDocs, doc, getDoc, setDoc, arrayUnion, doc
 import { Usuario } from '@/types/Usuario';
 import { Workspace } from '@/types/Workspace';
 import { Proyecto } from '@/types/Proyecto';
+import { Equipo } from '@/types/Equipo';
 
 //obtener usuarios por id
 export async function getUsuariosById( idUsuario:string ){
@@ -31,6 +32,20 @@ export async function getUsuariosByEmail( email:string ):Promise<Usuario & {clav
     const usuarioDoc = usuariosSnapshot.docs[0];
     return {idUsuario: usuarioDoc.id, ...usuarioDoc.data()} as Usuario & {clave:string};
 }
+
+//obtener usuarioid por correo
+export async function getUserIdByEmail( email:string ):Promise<string>{
+    const usuariosRef = collection(db, "usuarios");
+    const q = query(usuariosRef, where("email", "==", email));
+    const usuariosSnapshot = await getDocs(q);
+
+    if(usuariosSnapshot.empty){
+        throw new Error('No existe el usuario');
+    }
+
+    return usuariosSnapshot.docs[0].id;
+}
+
 
 //crear workspace y que devuelva el id
 export async function createWorkspace(workspace: Omit<Workspace, 'idWorkspace'>) {
@@ -124,6 +139,25 @@ export async function getProyectoById(idProyecto: string): Promise<Proyecto> {
     return { idProyecto: idProyecto, ...proyectoSnapshot.data() } as Proyecto;
 }
 
+//crear equipo, que devuelva id de equipo, dentro se crea un workspace y el nombre del equipo pasa tmb al nombre del workspace
+export async function createTeam(team: Omit<Equipo, 'idEquipo'>) {
+    // Crear el workspace
+    const workspaceId = await createWorkspace({ nombre: team.nombre, idUsuarios: team.miembros.map(m => m.idUsuario) });
+    // Crear el equipo
+    const teamRef = doc(db, "Equipo", uuidv4());
+    await setDoc(teamRef, { ...team, idWorkspace: workspaceId });
 
+    // Actualizar el workspace con el ID del equipo
+    const workspaceRef = doc(db, "Workspace", workspaceId);
+    await setDoc(workspaceRef, { idEquipo: arrayUnion(teamRef.id) }, { merge: true });
 
+    return teamRef.id;
+}
 
+//obtener equipo por idUsuario
+export async function getEquiposByIdUsuario(idUsuario: string):Promise<Equipo[]>{
+    const equiposRef = collection(db, "Equipo");
+    const q = query(equiposRef, where("miembros", "array-contains", {idUsuario: idUsuario}));
+    const equiposSnapshot = await getDocs(q);
+    return equiposSnapshot.docs.map(doc => ({idEquipo: doc.id, ...doc.data()} as Equipo));
+}

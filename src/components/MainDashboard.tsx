@@ -1,6 +1,6 @@
 'use client'
 import { signIn, useSession } from 'next-auth/react'
-import React, { useEffect, useState} from 'react'
+import React, { useEffect} from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,16 +9,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { PlusCircle,CheckCircle, Clock, AlertCircle} from 'lucide-react'
-import Sidebar from './Sidebar'
-import Header from './Header'
-import ModalWorkspace from './ModalWorkspace'
-import { createWorkspace, getWorkspaceByIdUsuario } from '@/lib/firebaseUtils'
-import { Workspace } from '@/types/Workspace'
+
 
 export default function MainDashboard() {
   const { data: session, status } = useSession();
-  const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false)
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+
   
   useEffect(() => {
     if (status === 'loading') return;
@@ -26,70 +21,20 @@ export default function MainDashboard() {
       signIn();
     }
   }, [session, status]);
-
-  useEffect(() => {
-    if (!session) return;
-    getWorkspaceByIdUsuario(session.user.id).then(setWorkspaces);
-  }, [session]);
-  
-  if (status === "loading") {
-    return <div className="flex items-center justify-center h-screen">Cargando...</div>
-  }
   
   if (!session) {
     return <div className="flex items-center justify-center h-screen">No autorizado</div>
   }
-  const { user } = session;
-
-  
-
-  const handleOpenModal = () => {
-    setIsWorkspaceModalOpen(true); // Abre la modal
-  };
-
-  const handleCloseModal = () => {
-    setIsWorkspaceModalOpen(false); // Cierra la modal
-  };
-
-  const handleCreate = async (workspaceName: string) => {
-    console.log('Crear Workspace:', workspaceName);
-  
-    // Asegúrate de que todos los campos tengan valores definidos
-    const workspace = {
-      nombre: workspaceName || "", // Si no hay nombre, asigna una cadena vacía
-      idUsuarios: [user.id], // Si no tienes idUsuario, asigna un array vacío
-      idProyectos: [], // Si no tienes proyectos, asigna un array vacío
-      idEquipo: "" // Si no tienes idEquipo, asigna una cadena vacía
-    };
-  
-    try {
-      const workspaceId = await createWorkspace(workspace);
-      console.log('Workspace creado:', workspaceId);
-      // Actualiza el estado con el nuevo workspace creado
-      setWorkspaces((prevWorkspaces) => [
-        ...prevWorkspaces,
-        { ...workspace, idWorkspace: workspaceId } // Se agrega el nuevo workspace sin recargar la página
-      ]);
-      handleCloseModal();
-    } catch (error) {
-      console.error('Error al crear el workspace:', error);
-    }
-  };
-
-  
-  
 
   return (
     <>
 
-      <div className="flex h-screen bg-gray-100">
+      <div className="flex bg-gray-100">
         {/* Sidebar */}
-        <Sidebar handleNewWorkspace={handleOpenModal} workspaces={workspaces}/>
 
         {/* Main */}
-        <div className='flex flex-col w-full'>
+        <div className='flex flex-col'>
           {/* Header */}
-          <Header user={user} />
 
           {/* Main Content */}
           <div className="flex-1 p-8">
@@ -215,9 +160,7 @@ export default function MainDashboard() {
         </div>
 
       </div>
-      {/* Modal para crear nuevo Workspace */}
-      {isWorkspaceModalOpen && <ModalWorkspace handleCloseModal={handleCloseModal} handleCreate={handleCreate} />
-      }
+      
 
     </>
 

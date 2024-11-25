@@ -1,6 +1,5 @@
 "use server";
 
-import { useSession } from "next-auth/react";
 import { StreamClient } from "@stream-io/node-sdk";
 import { getServerSession } from "next-auth";
 
@@ -15,4 +14,8 @@ export const tokenProvider = async () => {
     if (!apiSecret) throw new Error("No apiSecret found");
 
     const client=new StreamClient(apiKey, apiSecret);
+    const exp= Math.floor(Date.now() / 1000) + 3600; // 1 hour
+    const issuedAt = Math.floor(Date.now() / 1000)-60;
+    const token = client.generateUserToken({ user_id: user.id, exp, iat: issuedAt });
+    return token;
 }

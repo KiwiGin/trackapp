@@ -2,23 +2,18 @@
 
 import { Workspace } from "@/types/Workspace";
 import Image from "next/image";
-import Header from "./Header";
-import Sidebar from "./Sidebar";
 import { signIn, useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { createProject, createWorkspace, getProyectosByIdWorkspace, getWorkspaceByIdUsuario } from "@/lib/firebaseUtils";
+import { createProject, getProyectosByIdWorkspace} from "@/lib/firebaseUtils";
 import { useRouter } from 'next/navigation'
-import ModalWorkspace from "./ModalWorkspace";
 import { LoadingCharger } from "./LoginCharger";
 import ModalProject from "./ModalProject";
 import { Proyecto } from "@/types/Proyecto";
 
-export default function WorkpacePage({ workspace }: { workspace: Workspace }) {
+export default function WorkspacePage({ workspace }: { workspace: Workspace }) {
   const workspace_name = workspace.nombre;
   const { data: session, status } = useSession();
-  const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false)
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false)
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [proyectos, setProyectos] = useState<Proyecto[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
@@ -37,11 +32,6 @@ export default function WorkpacePage({ workspace }: { workspace: Workspace }) {
   }, [session, status, router, workspace.idUsuarios]);
 
   useEffect(() => {
-    if (!session) return;
-    getWorkspaceByIdUsuario(session.user.id).then(setWorkspaces);
-  }, [session]);
-
-  useEffect(() => {
     if (!workspace.idWorkspace) return;
     getProyectosByIdWorkspace(workspace.idWorkspace).then(setProyectos);
   }, [workspace]);
@@ -50,42 +40,12 @@ export default function WorkpacePage({ workspace }: { workspace: Workspace }) {
     return <LoadingCharger />;
   }
 
-  const handleOpenModal = () => {
-    setIsWorkspaceModalOpen(true)
-  }
-
-  const handleCloseModal = () => {
-    setIsWorkspaceModalOpen(false); // Cierra la modal
-  };
 
   const handleOpenModalProject = () => {
     setIsProjectModalOpen(true)
   }
 
-  const handleCreate = async (workspaceName: string) => {
-    console.log('Crear Workspace:', workspaceName);
-
-    // Asegúrate de que todos los campos tengan valores definidos
-    const workspace = {
-      nombre: workspaceName || "", // Si no hay nombre, asigna una cadena vacía
-      idUsuarios: [session?.user.id], // Si no tienes idUsuario, asigna un array vacío
-      idProyectos: [], // Si no tienes proyectos, asigna un array vacío
-      idEquipo: "" // Si no tienes idEquipo, asigna una cadena vacía
-    };
-
-    try {
-      const workspaceId = await createWorkspace(workspace);
-      console.log('Workspace creado:', workspaceId);
-      // Actualiza el estado con el nuevo workspace creado
-      setWorkspaces((prevWorkspaces) => [
-        ...prevWorkspaces,
-        { ...workspace, idWorkspace: workspaceId } // Se agrega el nuevo workspace sin recargar la página
-      ]);
-      handleCloseModal();
-    } catch (error) {
-      console.error('Error al crear el workspace:', error);
-    }
-  };
+  
 
   const handleCreateProject = async (projectName: string, projectDescription: string) => {
     console.log('Crear Proyecto:', projectName);
@@ -117,14 +77,12 @@ export default function WorkpacePage({ workspace }: { workspace: Workspace }) {
   return (
 
     <>
-      <div className="flex h-screen bg-gray-100">
+      <div className="flex h-screen">
         {/* Sidebar */}
-        <Sidebar handleNewWorkspace={handleOpenModal} workspaces={workspaces} />
 
         {/* Main */}
         <div className='flex flex-col w-full'>
           {/* Header */}
-          <Header user={session?.user} />
           <div className="bg-gray-50 min-h-screen">
             {/* Header Section */}
             <div className="bg-white shadow-md p-4 flex justify-between items-center">
@@ -177,9 +135,6 @@ export default function WorkpacePage({ workspace }: { workspace: Workspace }) {
         </div>
       </div>
 
-      {/* Modal para crear nuevo Workspace */}
-      {isWorkspaceModalOpen && <ModalWorkspace handleCloseModal={handleCloseModal} handleCreate={handleCreate} />
-      }
       {/* Modal para crear nuevo proyecto */}
       {isProjectModalOpen && <ModalProject open={isProjectModalOpen} onOpenChange={setIsProjectModalOpen} handleCreate={handleCreateProject}/>
       }

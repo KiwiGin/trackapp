@@ -16,15 +16,10 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ChevronDown, MoreHorizontal, Plus, Calendar, Grid, PlusCircle } from 'lucide-react'
 import { Tarea } from "@/types/Tarea"
-import Sidebar from "./Sidebar"
-import Header from "./Header"
 import { Proyecto } from "@/types/Proyecto"
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from 'next/navigation';
 import { LoadingCharger } from "./LoginCharger";
-import { createWorkspace, getWorkspaceByIdUsuario } from "@/lib/firebaseUtils"
-import { Workspace } from "@/types/Workspace"
-import ModalWorkspace from "./ModalWorkspace"
 import { Input } from "./ui/input"
 
 type Column = {
@@ -193,8 +188,6 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
   const { data: session, status } = useSession();
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter();
-  const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false)
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [activeTab, setActiveTab] = useState("backlog")
   const [boards, setBoards] = useState<Board[]>([
     {
@@ -232,18 +225,6 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
 
   }, [session, status, router, proyecto.idUsuarios]);
 
-  useEffect(() => {
-    if (!session) return;
-    getWorkspaceByIdUsuario(session.user.id).then(setWorkspaces);
-  }, [session]);
-
-  const handleOpenModal = () => {
-    setIsWorkspaceModalOpen(true)
-  }
-
-  const handleCloseModal = () => {
-    setIsWorkspaceModalOpen(false); // Cierra la modal
-  };
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -380,41 +361,15 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
     }
   }
 
-  const handleCreate = async (workspaceName: string) => {
-    console.log('Crear Workspace:', workspaceName);
-
-    // Asegúrate de que todos los campos tengan valores definidos
-    const workspace = {
-      nombre: workspaceName || "", // Si no hay nombre, asigna una cadena vacía
-      idUsuarios: [session?.user.id], // Si no tienes idUsuario, asigna un array vacío
-      idProyectos: [], // Si no tienes proyectos, asigna un array vacío
-      idEquipo: "" // Si no tienes idEquipo, asigna una cadena vacía
-    };
-
-    try {
-      const workspaceId = await createWorkspace(workspace);
-      console.log('Workspace creado:', workspaceId);
-      // Actualiza el estado con el nuevo workspace creado
-      setWorkspaces((prevWorkspaces) => [
-        ...prevWorkspaces,
-        { ...workspace, idWorkspace: workspaceId } // Se agrega el nuevo workspace sin recargar la página
-      ]);
-      handleCloseModal();
-    } catch (error) {
-      console.error('Error al crear el workspace:', error);
-    }
-  };
 
   return (
     <>
-      <div className="flex h-screen bg-gray-100">
+      <div className="flex h-screen">
         {/* Sidebar */}
-        <Sidebar handleNewWorkspace={handleOpenModal} workspaces={workspaces} />
 
         {/* Main */}
         <div className='flex flex-col w-full'>
           {/* Header */}
-          <Header user={session?.user} />
 
           <div className="min-h-screen bg-gray-100">
 
@@ -561,9 +516,6 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
 
         </div>
       </div>
-      {/* Modal para crear nuevo Workspace */}
-      {isWorkspaceModalOpen && <ModalWorkspace handleCloseModal={handleCloseModal} handleCreate={handleCreate} />
-      }
     </>
   )
 }
