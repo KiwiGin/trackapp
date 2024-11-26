@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Button } from './ui/button'
-import { Calendar, ChevronDown, Group, House, MessageCircle, PlusCircle } from 'lucide-react'
+import { ChevronDown, Group, House, MessageCircle, PlusCircle } from 'lucide-react'
 import { Workspace } from '@/types/Workspace';
 import { useRouter } from 'next/navigation'
 
