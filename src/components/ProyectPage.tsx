@@ -19,7 +19,7 @@ import { Tarea } from "@/types/Tarea"
 import { Proyecto } from "@/types/Proyecto"
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from 'next/navigation';
-import { LoadingCharger } from "./LoginCharger";
+// import { LoadingCharger } from "./LoginCharger";
 import { Input } from "./ui/input"
 import ModalTask from "./ModalTask"
 import { Incidencia } from "@/types/Incidencia"
@@ -187,12 +187,12 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
 
-  const proyectoName = proyecto.nombre;
   const workspaceId = proyecto.idWorkspace;
   const { data: session, status } = useSession();
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("backlog")
+  console.log(isLoading);
   const [boards, setBoards] = useState<Board[]>([
     {
       id: "sprint1",
@@ -371,28 +371,28 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
 
   const handleCreateTask = async (incidencia : Incidencia) => {
     console.log('Crear Proyecto:', incidencia.resumen);
-    let tarea = {};
-    let epic = {};
+    // let tarea = {};
+    // let epic = {};
     // Asegúrate de que todos los campos tengan valores definidos
     try {
       if(incidencia.tipo=="Tarea"){
-        tarea = {
-          titulo: incidencia.resumen,
-          descripcion: incidencia.descripcion,
-          estado: incidencia.estado,
-          tipo: incidencia.tipo,
-          asignado: incidencia.idUsuario,
-          idEpic: incidencia.idEpic,
-          idProyecto: proyecto.idProyecto
-        }
+        // tarea = {
+        //   titulo: incidencia.resumen,
+        //   descripcion: incidencia.descripcion,
+        //   estado: incidencia.estado,
+        //   tipo: incidencia.tipo,
+        //   asignado: incidencia.idUsuario,
+        //   idEpic: incidencia.idEpic,
+        //   idProyecto: proyecto.idProyecto
+        // }
 
       } else if(incidencia.tipo=="Epic"){
-        epic = {
-          resumen: incidencia.resumen,
-          descripcion: incidencia.descripcion,
-          asignado: incidencia.idUsuario,
-          idProyecto: proyecto.idProyecto
-        }
+        // epic = {
+        //   resumen: incidencia.resumen,
+        //   descripcion: incidencia.descripcion,
+        //   asignado: incidencia.idUsuario,
+        //   idProyecto: proyecto.idProyecto
+        // }
       }
 
     } catch (error) {

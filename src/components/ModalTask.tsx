@@ -20,14 +20,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
-import { Equipo } from '@/types/Equipo'
-import { getUserIdByEmail, getUsuariosById, getUsuariosByIdWorkspace } from '@/lib/firebaseUtils'
-import { Avatar, AvatarFallback, AvatarImage } from '@radix-ui/react-avatar'
+import { Avatar, AvatarImage } from '@radix-ui/react-avatar'
 import { Usuario } from '@/types/Usuario'
-import { Tarea } from '@/types/Tarea'
 import { Incidencia } from '@/types/Incidencia'
-import { CircleUserRound } from 'lucide-react'
 import { Textarea } from './ui/textarea'
+import { getUsuariosByIdWorkspace } from '@/lib/firebaseUtils'
 
 
 
