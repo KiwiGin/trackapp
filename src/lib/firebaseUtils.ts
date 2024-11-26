@@ -46,6 +46,31 @@ export async function getUserIdByEmail( email:string ):Promise<string>{
     return usuariosSnapshot.docs[0].id;
 }
 
+//obtener usuarios por idWorkspace
+export async function getUsuariosByIdWorkspace(idWorkspace: string):Promise<Usuario[]>{
+    const workspaceRef = doc(db, "Workspace", idWorkspace);
+    const workspaceSnapshot = await getDoc(workspaceRef);
+
+    if(!workspaceSnapshot.exists()){
+        throw new Error('No existe el workspace');
+    }
+
+    const workspaceData = workspaceSnapshot.data();
+    if(!workspaceData){
+        throw new Error('No existe el workspace');
+    }
+
+    const userIds = workspaceData.idUsuarios || [];
+    if(userIds.length === 0){
+        return [];
+    }
+
+    const usuariosRef = collection(db, "usuarios");
+    const usuariosSnapshot = await getDocs(query(usuariosRef, where(documentId(), "in", userIds)));
+
+    return usuariosSnapshot.docs.map(doc => ({idUsuario: doc.id, ...doc.data()} as Usuario));
+}
+
 
 //crear workspace y que devuelva el id
 export async function createWorkspace(workspace: Omit<Workspace, 'idWorkspace'>) {

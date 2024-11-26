@@ -8,4 +8,5 @@ export interface Epic{
     idProyecto: string;
     tareas?: Tarea[];
     idTareas: string[];
+    asignado?: string;
 }

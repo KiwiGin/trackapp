@@ -21,75 +21,70 @@ import {
     SelectValue,
 } from '@/components/ui/select'
 import { Equipo } from '@/types/Equipo'
-import { getUserIdByEmail, getUsuariosById } from '@/lib/firebaseUtils'
+import { getUserIdByEmail, getUsuariosById, getUsuariosByIdWorkspace } from '@/lib/firebaseUtils'
 import { Avatar, AvatarFallback, AvatarImage } from '@radix-ui/react-avatar'
 import { Usuario } from '@/types/Usuario'
+import { Tarea } from '@/types/Tarea'
+import { Incidencia } from '@/types/Incidencia'
+import { CircleUserRound } from 'lucide-react'
+import { Textarea } from './ui/textarea'
+
+
 
 export default function ModalTask({
     open,
     onOpenChange,
     handleCreate,
+    workspaceId
 }: {
     open: boolean;
     onOpenChange: (value: boolean) => void;
-    handleCreate: (equipo: Equipo) => void;
+    handleCreate: (incidencia: Incidencia) => void;
+    workspaceId?: string;
 }) {
-    const [equipo, setEquipo] = useState<Equipo>({
-        idEquipo: "",
-        idWorkspace: "",
-        nombre: "",
-        miembros: []
+    const epics = [
+        {
+            idEpic: "1",
+            resumen: "Epic 1"
+        },
+        {
+            idEpic: "2",
+            resumen: "Epic 2"
+        },
+        {
+            idEpic: "3",
+            resumen: "Epic 3"
+        }
+    ];
+    const [incidencia, setIncidencia] = useState<Incidencia>({
+        resumen: "",
+        estado: "",
+        tipo: "",
+        idUsuario: "",
+        idEpic: "",
+        descripcion: ""
     });
-    const [email, setEmail] = useState("");
-    const [role, setRole] = useState("");
-    const [members, setMembers] = useState<Usuario[]>();
-    //obtener usuarios por los ids guardados en la const equipo
+    const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+    //obtener usuarios de un workspace por idworkspace
     useEffect(() => {
-        if (equipo.miembros.length > 0) {
-            const promises = equipo.miembros.map(async (miembro) => await getUsuariosById(miembro.idUsuario));
-            Promise.all(promises).then(setMembers);
+        if (workspaceId) {
+            getUsuariosByIdWorkspace(workspaceId)
+                .then((usuarios) => {
+                    setUsuarios(usuarios);
+                })
+                .catch((error) => {
+                    console.error('Error obteniendo usuarios:', error);
+                });
         }
-    }, [equipo.miembros]);
+    }, [workspaceId]);
 
 
-    const handleEmailInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        setEmail(e.target.value);
-
-    }
-    const handleRoleSelect = (value: string) => {
-        setRole(value);
-    }
-
-    const handleAddMember = async () => {
-        try {
-            const id = await getUserIdByEmail(email);
-            setEquipo((prevEquipo) => ({
-                ...prevEquipo,
-                miembros: [
-                    ...prevEquipo.miembros,
-                    { idUsuario: id, rolEquipo: role },
-                ],
-            }));
-        } catch (error) {
-            console.error('Error al agregar miembro:', error);
-        }
-    }
-
-
-    const handleRoleChange = (id: string, value: string) => {
-        setEquipo((prevEquipo) => ({
-            ...prevEquipo,
-            miembros: prevEquipo.miembros.map((miembro) =>
-                miembro.idUsuario === id ? { ...miembro, rolEquipo: value } : miembro
-            ),
-        }));
-    }
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        console.log('Datos enviados:', equipo);
-        if (equipo) {
-            handleCreate(equipo);
+        console.log('Datos enviados:', incidencia);
+        if (incidencia) {
+            handleCreate(incidencia);
         } else {
             console.error('Equipo is undefined');
         }
@@ -100,82 +95,126 @@ export default function ModalTask({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle>Crear Nuevo Equipo</DialogTitle>
+                    <DialogTitle>Crear Nueva Incidencia</DialogTitle>
                     <DialogDescription>
-                        Ingrese los detalles del nuevo equipo aquí. Haga clic en crear cuando termine.
+                        Ingrese los detalles de la nueva incidencia. Haga clic en crear cuando termine.
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit}>
                     <div className="grid gap-4 py-4">
                         <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="nombre" className="text-right">
-                                Nombre
+                            <Label htmlFor="nombre" className="text-left">
+                                Resumen
                             </Label>
                             <Input
                                 id="nombre"
-                                value={equipo?.nombre}
-                                onChange={(e) => setEquipo({ ...equipo!, nombre: e.target.value })}
+                                value={incidencia?.resumen}
+                                onChange={(e) => setIncidencia({ ...incidencia!, resumen: e.target.value })}
                                 className="col-span-3"
                             />
                         </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="descripcion" className="text-right">
-                                Invitar Miembros
+                        <div className="grid grid-cols-2 items-center gap-4">
+                            <Label htmlFor="descripcion" className="text-left">
+                                Tipo de incidencia
                             </Label>
-                            <Input
-                                id="email"
-                                value={email}
-                                onChange={handleEmailInput}
-                                className="col-span-3"
-                            />
-                            <Select
-                                value={equipo.miembros[0]?.rolEquipo || ""}
-                                onValueChange={handleRoleSelect}
+                            <Label htmlFor="descripcion" className="text-left">
+                                Estado
+                            </Label>
 
+
+                        </div>
+                        <div className="grid grid-cols-2 items-center gap-4">
+                            <Select
+                                value={incidencia.tipo}
+                                onValueChange={(value) => setIncidencia({ ...incidencia, tipo: value })}
                             >
-                                <SelectTrigger id="role">
-                                    <SelectValue placeholder="Select a role" />
+                                <SelectTrigger id="type">
+                                    <SelectValue placeholder="Selecciona un tipo" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="Dev">Dev</SelectItem>
-                                    <SelectItem value="SMaster">SMaster</SelectItem>
-                                    <SelectItem value="Owner">Owner</SelectItem>
+                                    <SelectItem value="Tarea">Tarea</SelectItem>
+                                    <SelectItem value="Historia">Historia</SelectItem>
+                                    <SelectItem value="Error">Error</SelectItem>
+                                    <SelectItem value="Epic">Epic</SelectItem>
                                 </SelectContent>
                             </Select>
-                            {/* boton para agregarlos a la lista de Team Members */}
-                            <Button type="button" onClick={handleAddMember}>Add</Button>
+                            <Select
+                                value={incidencia.estado}
+                                onValueChange={(value) => setIncidencia({ ...incidencia, estado: value })}
+                            >
+                                <SelectTrigger id="state">
+                                    <SelectValue placeholder="Selecciona un estado" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="TO-DO">TO-DO</SelectItem>
+                                    <SelectItem value="IN PROGRESS">IN PROGRESS</SelectItem>
+                                    <SelectItem value="DONE">DONE</SelectItem>
+                                </SelectContent>
+                            </Select>
+
                         </div>
-                        <div className="space-y-4">
-                            <h2 className="text-xl font-semibold">Team Members</h2>
-                            <div className="space-y-4">
-                                {members?.map((member, index) => (
-                                    <div key={index} className="flex items-center justify-between p-4 bg-white rounded-lg shadow">
-                                        <div className="flex items-center space-x-4">
-                                            <Avatar className='h-14 w-14'>
-                                                <AvatarImage src={member.linkImg} alt={member.usuario} className='rounded-full object-fill' />
-                                                <AvatarFallback>{member.nombre ? member.nombre[0] : 'T'}</AvatarFallback>
-                                            </Avatar>
-                                            <div>
-                                                <p className="font-medium">{member.nombre}</p>
-                                                <p className="text-sm text-gray-500">{member.email}</p>
+                        <div className="grid grid-cols-1 items-center gap-4">
+                            <Label htmlFor="descripcion" className="text-left">
+                                Persona asignada
+                            </Label>
+                            <Select
+                                value={incidencia.idUsuario}
+                                onValueChange={(value) => setIncidencia({ ...incidencia, idUsuario: value })}
+                            >
+                                <SelectTrigger id="type">
+                                    <SelectValue placeholder="Selecciona persona" />
+                                </SelectTrigger>
+
+                                <SelectContent>
+                                    {usuarios.map((usuario) => (
+                                        <SelectItem key={usuario.idUsuario} value={usuario.idUsuario}>
+                                            <div className="flex items-center gap-2">
+                                                <Avatar className='w-7 h-7'>
+                                                    <AvatarImage src={usuario.linkImg} alt={usuario.usuario} className='rounded-full object-fill' />
+                                                </Avatar>
+                                                <span>{usuario.nombre}</span>
                                             </div>
-                                        </div>
-                                        <Select value={equipo.miembros.find(
-                                            (miembro) => miembro.idUsuario === member.idUsuario
-                                        )?.rolEquipo || ""} onValueChange={(value) => handleRoleChange(member.idUsuario, value)}>
-                                            <SelectTrigger className="w-[120px]">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="Dev">Dev</SelectItem>
-                                                <SelectItem value="SMaster">SMaster</SelectItem>
-                                                <SelectItem value="Owner">Owner</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                ))}
-                            </div>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
+                        <div className="grid grid-cols-1 items-center gap-4">
+                            <Label htmlFor="descripcion" className="text-left">
+                                Principal
+                            </Label>
+                            <Select
+                                value={incidencia.idEpic}
+                                onValueChange={(value) => setIncidencia({ ...incidencia, idEpic: value })}
+                            >
+                                <SelectTrigger id="type">
+                                    <SelectValue placeholder="Selecciona epic" />
+                                </SelectTrigger>
+
+                                <SelectContent>
+                                    {epics.map((epic) => (
+                                        <SelectItem key={epic.idEpic} value={epic.idEpic}>
+                                            <div className="flex items-center gap-2">
+                                                <span>{epic.resumen}</span>
+                                            </div>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid grid-cols-1 items-center gap-4">
+                            <Label htmlFor="descripcion" className="text-left">
+                                Descripción
+                            </Label>
+                            <Textarea
+                                id="descripcion"
+                                value={incidencia.descripcion}
+                                onChange={(e) => setIncidencia({ ...incidencia!, descripcion: e.target.value })}
+                                className="col-span-3"
+                            />
+                        </div>
+
+
                     </div>
                     <DialogFooter>
                         <Button type="submit">Crear</Button>

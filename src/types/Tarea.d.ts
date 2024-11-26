@@ -7,4 +7,5 @@ export interface Tarea{
     estado?: string;
     tipo?: string;
     titulo: string;
+    asignado?: string;
 }

@@ -21,6 +21,8 @@ import { signIn, useSession } from "next-auth/react";
 import { useRouter } from 'next/navigation';
 import { LoadingCharger } from "./LoginCharger";
 import { Input } from "./ui/input"
+import ModalTask from "./ModalTask"
+import { Incidencia } from "@/types/Incidencia"
 
 type Column = {
   id: string
@@ -183,8 +185,10 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
     { id: 'done', title: 'Done', tasks: [] },
   ])
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
 
   const proyectoName = proyecto.nombre;
+  const workspaceId = proyecto.idWorkspace;
   const { data: session, status } = useSession();
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter();
@@ -224,6 +228,10 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
     }
 
   }, [session, status, router, proyecto.idUsuarios]);
+
+  const handleOpenModalTask = () => {
+    setIsTaskModalOpen(true)
+  }
 
 
   const sensors = useSensors(
@@ -361,6 +369,48 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
     }
   }
 
+  const handleCreateTask = async (incidencia : Incidencia) => {
+    console.log('Crear Proyecto:', incidencia.resumen);
+    let tarea = {};
+    let epic = {};
+    // Asegúrate de que todos los campos tengan valores definidos
+    try {
+      if(incidencia.tipo=="Tarea"){
+        tarea = {
+          titulo: incidencia.resumen,
+          descripcion: incidencia.descripcion,
+          estado: incidencia.estado,
+          tipo: incidencia.tipo,
+          asignado: incidencia.idUsuario,
+          idEpic: incidencia.idEpic,
+          idProyecto: proyecto.idProyecto
+        }
+
+      } else if(incidencia.tipo=="Epic"){
+        epic = {
+          resumen: incidencia.resumen,
+          descripcion: incidencia.descripcion,
+          asignado: incidencia.idUsuario,
+          idProyecto: proyecto.idProyecto
+        }
+      }
+
+    } catch (error) {
+      console.error('Error al crear la tarea:', error);
+    }
+
+
+    // try {
+    //     const equipoId = await createTeam(equipo);
+    //     console.log('Equipo creado:', equipoId);
+    //     setEquipos((prevEquipos) => [
+    //         ...prevEquipos,
+    //         { idEquipo: equipoId, ...equipo }
+    //     ]);
+    // } catch (error) {
+    //     console.error('Error al crear el proyecto:', error);
+    // }
+};
 
   return (
     <>
@@ -464,7 +514,7 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
                               </SortableContext>
                             )}
                             <div className="p-4 border-t">
-                              <Button variant="ghost" size="sm" className="w-full justify-start">
+                              <Button onClick={handleOpenModalTask} variant="ghost" size="sm" className="w-full justify-start">
                                 <Plus className="h-4 w-4 mr-2" /> Crear incidencia
                               </Button>
                             </div>
@@ -478,10 +528,10 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
               )}
 
               {activeTab === "kanban" && (
-                <div className="flex gap-6 p-6">
+                <div className="flex  gap-6 p-6">
                   {/* Tablero kanban */}
-                  <div className="p-4 bg-gray-200 min-h-screen">
-                    <h1 className="text-2xl font-bold mb-4 text-gray-800">Jira-like Kanban Board</h1>
+                  <div className="p-4 bg-gray-200 h-full w-full">
+                    <h1 className="text-2xl font-bold mb-4 text-gray-800">Kanban Board</h1>
                     <AddBoardForm onAddBoard={addBoard} />
                     <DndContext
                       sensors={sensors}
@@ -516,6 +566,9 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
 
         </div>
       </div>
+      {/* Modal para crear nuevo proyecto */}
+      {isTaskModalOpen && <ModalTask open={isTaskModalOpen} onOpenChange={setIsTaskModalOpen} handleCreate={handleCreateTask} workspaceId={workspaceId}/>
+      }
     </>
   )
 }
