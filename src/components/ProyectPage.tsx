@@ -23,11 +23,18 @@ import { useRouter } from 'next/navigation';
 import { Input } from "./ui/input"
 import ModalTask from "./ModalTask"
 import { Incidencia } from "@/types/Incidencia"
+import { Epic } from "@/types/Epic"
 
 type Column = {
   id: string
   title: string
   tasks: Tarea[]
+}
+
+type ColumnEpic = {
+  id: string
+  title: string
+  tasks: Epic[]
 }
 
 type Board = {
@@ -54,6 +61,29 @@ const SortableTaskKB = ({ task }: { task: Tarea }) => {
     <Card ref={setNodeRef} style={style} {...attributes} {...listeners} className="mb-2 cursor-move bg-white shadow-sm hover:bg-gray-50">
       <CardContent className="p-3 text-sm">
         {task.titulo}
+      </CardContent>
+    </Card>
+  )
+}
+
+const SortableEpicBoard = ({ task }: { task: Epic }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: task.idEpic })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
+
+  return (
+    <Card ref={setNodeRef} style={style} {...attributes} {...listeners} className="mb-2 cursor-move bg-white shadow-sm hover:bg-gray-50">
+      <CardContent className="p-3 text-sm">
+        {task.resumen}
       </CardContent>
     </Card>
   )
@@ -102,6 +132,62 @@ const Column = ({ column, tasks, onAddTask }: { column: Column, tasks: Tarea[], 
             type="text"
             value={newTaskContent}
             onChange={(e) => setNewTaskContent(e.target.value)}
+            placeholder="Add a task..."
+            className="mb-2"
+          />
+          <Button type="submit" className="w-full">
+            <PlusCircle className="mr-2 h-4 w-4" /> Add
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+};
+
+
+const ColumnEpic = ({ column, epics, onAddEpic }: { column: ColumnEpic, epics: Epic[], onAddEpic: (columnId: string, content: string) => void }) => {
+  const { setNodeRef, isOver } = useDroppable({
+    id: column.id,
+  });
+
+  const [newEpicContent, setNewEpicContent] = useState('');
+
+  const handleAddEpic = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newEpicContent.trim()) {
+      onAddEpic(column.id, newEpicContent.trim());
+      setNewEpicContent('');
+    }
+  };
+
+  return (
+    <Card
+      ref={setNodeRef}
+      className={`w-72 mx-2 bg-gray-100 border-t-4 ${isOver ? 'border-t-blue-700' : 'border-t-blue-500'}`}
+    >
+      <CardHeader className="p-3">
+        <div className="flex justify-between items-center">
+          <CardTitle className="text-sm font-medium">{column.title}</CardTitle>
+          <Button variant="ghost" size="icon" className="h-6 w-6">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="text-xs text-gray-500">{epics.length} issues</div>
+      </CardHeader>
+      <CardContent className="p-2">
+        <SortableContext
+          items={epics.map(task => task.idEpic)}
+          strategy={verticalListSortingStrategy}
+        >
+          {epics.map((task) => (
+            <SortableEpicBoard key={task.idEpic} task={task} />
+          ))}
+        </SortableContext>
+        <form onSubmit={handleAddEpic} className="mt-2">
+          <Input
+            type="text"
+            value={newEpicContent}
+            onChange={(e) => setNewEpicContent(e.target.value)}
             placeholder="Add a task..."
             className="mb-2"
           />
@@ -369,13 +455,13 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
     }
   }
 
-  const handleCreateTask = async (incidencia : Incidencia) => {
+  const handleCreateTask = async (incidencia: Incidencia) => {
     console.log('Crear Proyecto:', incidencia.resumen);
     // let tarea = {};
     // let epic = {};
     // Asegúrate de que todos los campos tengan valores definidos
     try {
-      if(incidencia.tipo=="Tarea"){
+      if (incidencia.tipo == "Tarea") {
         // tarea = {
         //   titulo: incidencia.resumen,
         //   descripcion: incidencia.descripcion,
@@ -386,7 +472,7 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
         //   idProyecto: proyecto.idProyecto
         // }
 
-      } else if(incidencia.tipo=="Epic"){
+      } else if (incidencia.tipo == "Epic") {
         // epic = {
         //   resumen: incidencia.resumen,
         //   descripcion: incidencia.descripcion,
@@ -410,7 +496,7 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
     // } catch (error) {
     //     console.error('Error al crear el proyecto:', error);
     // }
-};
+  };
 
   return (
     <>
@@ -464,11 +550,26 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
                       </div>
                       <div className="space-y-2">
                         <div className="text-sm text-muted-foreground">Incidencias sin epic</div>
-                        <div className="pl-4 space-y-2">
-                          <div className="text-sm">Página web para sacar citas</div>
-                          <div className="text-sm">Sistema de gestión de citas perdidas</div>
-                          <div className="text-sm">SSDA</div>
-                        </div>
+                        <DndContext
+                          sensors={sensors}
+                          collisionDetection={closestCorners}
+                          onDragStart={handleDragStart}
+                          onDragOver={handleDragOver}
+                          onDragEnd={handleDragEndKB}
+                        >
+                          <div className="flex overflow-x-auto pb-4 gap-4">
+                              <ColumnEpic column={column} tasks={epic.tasks} onAddTask={addTask} />
+                          </div>
+                          <DragOverlay>
+                            {activeId ? (
+                              <Card className="w-64 mb-2 cursor-move bg-white shadow-md">
+                                <CardContent className="p-3 text-sm">
+                                  {columns.flatMap(col => col.tasks).find(task => task.idTarea === activeId)?.titulo}
+                                </CardContent>
+                              </Card>
+                            ) : null}
+                          </DragOverlay>
+                        </DndContext>
                         <Button variant="ghost" size="sm" className="w-full justify-start">
                           <Plus className="h-4 w-4 mr-2" /> Crear epic
                         </Button>
@@ -567,7 +668,7 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
         </div>
       </div>
       {/* Modal para crear nuevo proyecto */}
-      {isTaskModalOpen && <ModalTask open={isTaskModalOpen} onOpenChange={setIsTaskModalOpen} handleCreate={handleCreateTask} workspaceId={workspaceId}/>
+      {isTaskModalOpen && <ModalTask open={isTaskModalOpen} onOpenChange={setIsTaskModalOpen} handleCreate={handleCreateTask} workspaceId={workspaceId} />
       }
     </>
   )
