@@ -5,4 +5,5 @@ export interface Incidencia{
     tipo: string;
     idUsuario: string;
     idEpic: string;
+    idSprint?: string;
 };

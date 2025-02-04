@@ -5,8 +5,9 @@ export interface Epic{
     fechaHoraInicio: Date;
     fechaHoraFin: Date;
     proyecto?: Proyecto;
-    idProyecto: string;
+    idProyecto?: string;
     tareas?: Tarea[];
     idTareas: string[];
     asignado?: string;
+    estado: string;
 }

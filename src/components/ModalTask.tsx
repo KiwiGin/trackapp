@@ -24,7 +24,8 @@ import { Avatar, AvatarImage } from '@radix-ui/react-avatar'
 import { Usuario } from '@/types/Usuario'
 import { Incidencia } from '@/types/Incidencia'
 import { Textarea } from './ui/textarea'
-import { getUsuariosByIdWorkspace } from '@/lib/firebaseUtils'
+import { getEpicsByIdProyecto, getUsuariosByIdWorkspace } from '@/lib/firebaseUtils'
+import { Epic } from '@/types/Epic'
 
 
 
@@ -32,27 +33,16 @@ export default function ModalTask({
     open,
     onOpenChange,
     handleCreate,
-    workspaceId
+    workspaceId,
+    proyectoId
 }: {
     open: boolean;
     onOpenChange: (value: boolean) => void;
     handleCreate: (incidencia: Incidencia) => void;
     workspaceId?: string;
+    proyectoId?: string;
 }) {
-    const epics = [
-        {
-            idEpic: "1",
-            resumen: "Epic 1"
-        },
-        {
-            idEpic: "2",
-            resumen: "Epic 2"
-        },
-        {
-            idEpic: "3",
-            resumen: "Epic 3"
-        }
-    ];
+    const [epics, setEpics] = useState<Epic[]>([]);
     const [incidencia, setIncidencia] = useState<Incidencia>({
         resumen: "",
         estado: "",
@@ -74,6 +64,18 @@ export default function ModalTask({
                 });
         }
     }, [workspaceId]);
+
+    useEffect(() => {
+        if (proyectoId) {
+            getEpicsByIdProyecto(proyectoId)
+                .then((response) => {
+                    setEpics(response.epics)
+                })
+                .catch((error) => {
+                    console.error('Error obteniendo epics:', error);
+                });
+        }
+    }, [proyectoId]);
 
 
 
@@ -123,7 +125,10 @@ export default function ModalTask({
                         <div className="grid grid-cols-2 items-center gap-4">
                             <Select
                                 value={incidencia.tipo}
-                                onValueChange={(value) => setIncidencia({ ...incidencia, tipo: value })}
+                                onValueChange={(value) => setIncidencia({
+                                    ...incidencia, tipo: value,
+                                    idEpic: value === "Epic" ? "" : incidencia.idEpic
+                                })}
                             >
                                 <SelectTrigger id="type">
                                     <SelectValue placeholder="Selecciona un tipo" />
@@ -143,9 +148,9 @@ export default function ModalTask({
                                     <SelectValue placeholder="Selecciona un estado" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="TO-DO">TO-DO</SelectItem>
-                                    <SelectItem value="IN PROGRESS">IN PROGRESS</SelectItem>
-                                    <SelectItem value="DONE">DONE</SelectItem>
+                                    <SelectItem value="POR HACER">POR HACER</SelectItem>
+                                    <SelectItem value="EN PROGRESO">EN PROGRESO</SelectItem>
+                                    <SelectItem value="HECHO">HECHO</SelectItem>
                                 </SelectContent>
                             </Select>
 
@@ -176,29 +181,32 @@ export default function ModalTask({
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="grid grid-cols-1 items-center gap-4">
-                            <Label htmlFor="descripcion" className="text-left">
-                                Principal
-                            </Label>
-                            <Select
-                                value={incidencia.idEpic}
-                                onValueChange={(value) => setIncidencia({ ...incidencia, idEpic: value })}
-                            >
-                                <SelectTrigger id="type">
-                                    <SelectValue placeholder="Selecciona epic" />
-                                </SelectTrigger>
+                        {incidencia.tipo !== "Epic" && (
+                            <div className="grid grid-cols-1 items-center gap-4">
+                                <Label htmlFor="descripcion" className="text-left">
+                                    Principal
+                                </Label>
+                                <Select
+                                    value={incidencia.idEpic}
+                                    onValueChange={(value) => setIncidencia({ ...incidencia, idEpic: value })}
+                                >
+                                    <SelectTrigger id="type">
+                                        <SelectValue placeholder="Selecciona epic" />
+                                    </SelectTrigger>
 
-                                <SelectContent>
-                                    {epics.map((epic) => (
-                                        <SelectItem key={epic.idEpic} value={epic.idEpic}>
-                                            <div className="flex items-center gap-2">
-                                                <span>{epic.resumen}</span>
-                                            </div>
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                                    <SelectContent>
+                                        {epics.map((epic) => (
+                                            <SelectItem key={epic.idEpic} value={epic.idEpic}>
+                                                <div className="flex items-center gap-2">
+                                                    <span>{epic.resumen}</span>
+                                                </div>
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-1 items-center gap-4">
                             <Label htmlFor="descripcion" className="text-left">
                                 Descripción

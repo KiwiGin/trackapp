@@ -1,9 +1,10 @@
 export interface Sprint{
-    idSprint: string;
+    idSprint?: string;
     nombre: string;
     estado: string;
     fechaInicio: Date;
-    idProyecto: string;
+    duracion: number;
+    idProyecto?: string;
+    tareas: Tarea[];
     idTareas: string[];
-    tareas?: Tarea[];
 }

@@ -4,11 +4,14 @@ import { Workspace } from "@/types/Workspace";
 import Image from "next/image";
 import { signIn, useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { createProject, getProyectosByIdWorkspace} from "@/lib/firebaseUtils";
+import { createProject, deleteProjectById, getProyectosByIdWorkspace } from "@/lib/firebaseUtils";
 import { useRouter } from 'next/navigation'
 import { LoadingCharger } from "./LoginCharger";
 import ModalProject from "./ModalProject";
 import { Proyecto } from "@/types/Proyecto";
+import { EllipsisVerticalIcon, Trash} from "lucide-react";
+import { Button } from "./ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
 export default function WorkspacePage({ workspace }: { workspace: Workspace }) {
   const workspace_name = workspace.nombre;
@@ -34,7 +37,7 @@ export default function WorkspacePage({ workspace }: { workspace: Workspace }) {
   useEffect(() => {
     if (!workspace.idWorkspace) return;
     getProyectosByIdWorkspace(workspace.idWorkspace).then(setProyectos);
-  }, [workspace]);
+  }, [workspace, proyectos]);
 
   if (isLoading || status === 'loading' || !session) {
     return <LoadingCharger />;
@@ -45,7 +48,7 @@ export default function WorkspacePage({ workspace }: { workspace: Workspace }) {
     setIsProjectModalOpen(true)
   }
 
-  
+
 
   const handleCreateProject = async (projectName: string, projectDescription: string) => {
     console.log('Crear Proyecto:', projectName);
@@ -54,7 +57,7 @@ export default function WorkspacePage({ workspace }: { workspace: Workspace }) {
     const proyecto = {
       nombre: projectName || "", // Si no hay nombre, asigna una cadena vacía
       descripcion: projectDescription || "", // Si no hay descripción, asigna una cadena vacía
-      idUsuarios: [session?.user.id], // Si no tienes idUsuario, asigna un array vacío
+      idUsuarios: workspace.idUsuarios, // Asigna los usuarios del workspace
       idEpics: [], // Si no tienes epics, asigna un array vacío
       idSprints: [], // Si no tienes sprints, asigna un array vacío
       idTareas: [], // Si no tienes tareas, asigna un array vacío
@@ -74,6 +77,11 @@ export default function WorkspacePage({ workspace }: { workspace: Workspace }) {
       console.error('Error al crear el proyecto:', error);
     }
   };
+
+  const handleDeleteProject = async (projectId: string) => {
+    await deleteProjectById(projectId);
+  }
+
   return (
 
     <>
@@ -111,23 +119,41 @@ export default function WorkspacePage({ workspace }: { workspace: Workspace }) {
               <div className="grid grid-cols-4 gap-4">
                 {proyectos.map((project, index) => (
                   <div
-                  key={index}
-                  onClick={() => router.push(`/workspace/${workspace.idWorkspace}/projects/${project.idProyecto}`)}
-                  className="bg-white border border-gray-200 rounded-lg shadow-md overflow-hidden cursor-pointer transform transition-transform hover:scale-105 hover:shadow-lg"
-                >
-                  <Image
-                    src={"/workspace_default.jpg"}
-                    alt={project.nombre}
-                    width={300}
-                    height={200}
-                    className="object-cover w-full h-48"
-                  />
-                  <div className="p-4">
-                    <h3 className="text-lg font-semibold">{project.nombre}</h3>
-                    <p className="text-sm text-gray-500">Created by {project.creadoPor}</p>
+                    key={index}
+
+                    className="bg-white border border-gray-200 rounded-lg shadow-md overflow-hidden cursor-pointer transform transition-transform hover:scale-105 hover:shadow-lg"
+                  >
+                    <Image
+                      onClick={() => router.push(`/workspace/${workspace.idWorkspace}/projects/${project.idProyecto}`)}
+                      src={"/workspace_default.jpg"}
+                      alt={project.nombre}
+                      width={300}
+                      height={200}
+                      className="object-cover w-full h-48"
+                    />
+                    <div className="flex flex-row p-4">
+                      <div>
+                        <h3 className="text-lg font-semibold">{project.nombre}</h3>
+                        <p className="text-sm text-gray-500">Created by {project.creadoPor}</p>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="ml-auto">
+                            <EllipsisVerticalIcon className="h-5 w-5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-56">
+                          <DropdownMenuGroup>
+                            <DropdownMenuItem onSelect={() => project.idProyecto && handleDeleteProject(project.idProyecto)}>
+                              <Trash />
+                              <span>Eliminar</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
-                </div>
-                
+
                 ))}
               </div>
             </div>
@@ -136,7 +162,7 @@ export default function WorkspacePage({ workspace }: { workspace: Workspace }) {
       </div>
 
       {/* Modal para crear nuevo proyecto */}
-      {isProjectModalOpen && <ModalProject open={isProjectModalOpen} onOpenChange={setIsProjectModalOpen} handleCreate={handleCreateProject}/>
+      {isProjectModalOpen && <ModalProject open={isProjectModalOpen} onOpenChange={setIsProjectModalOpen} handleCreate={handleCreateProject} />
       }
     </>
   );

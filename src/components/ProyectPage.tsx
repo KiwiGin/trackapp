@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from "react"
+import { act, use, useEffect, useState } from "react"
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, DragStartEvent, DragOverEvent, closestCorners, DragOverlay, useDroppable } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useSortable } from '@dnd-kit/sortable'
@@ -24,6 +24,10 @@ import { Input } from "./ui/input"
 import ModalTask from "./ModalTask"
 import { Incidencia } from "@/types/Incidencia"
 import { Epic } from "@/types/Epic"
+import { Sprint } from "@/types/Sprint"
+import { createEpic, createTask, getEpicsByIdProyecto, getSprintsByIdProyecto, getTareasByIdProyecto, getUsuariosByIds, updateTaskOrderInFirebase, updateTaskSprint } from "@/lib/firebaseUtils"
+import { Usuario } from "@/types/Usuario"
+import { Badge } from "./ui/badge"
 
 type Column = {
   id: string
@@ -34,13 +38,90 @@ type Column = {
 type ColumnEpic = {
   id: string
   title: string
-  tasks: Epic[]
+  epics: Epic[]
 }
 
 type Board = {
   id: string
   title: string
   tasks: Tarea[]
+}
+
+function SortableTask({ task }: { task: Tarea }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: task.idTarea })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="flex items-center justify-between p-4 bg-white border-b last:border-b-0"
+    >
+      <div className="flex items-center gap-2">
+        <input type="checkbox" className="rounded" aria-label={`Mark ${task.titulo} as complete`} />
+        {/* <span className="text-sm font-medium">{task.idTarea}</span> */}
+        <span className="text-sm">{task.titulo}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <Badge>{task.tipo}</Badge>
+        <span className="text-sm text-muted-foreground">{task.estado}</span>
+        <Avatar className='w-6 h-6'>
+          <AvatarImage src={task.usuario?.linkImg} alt={task.usuario?.usuario} className='rounded-full object-fill' />
+        </Avatar>
+      </div>
+
+    </div>
+  )
+}
+
+function SortableEpic({ epic }: { epic: Epic }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: epic.idEpic })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="flex items-center justify-between p-4 bg-white border-b last:border-b-0"
+    >
+      <div className="flex items-center gap-2">
+        <input type="checkbox" className="rounded" aria-label={`Mark ${epic.resumen} as complete`} />
+        {/* <span className="text-sm font-medium">{epic.idEpic}</span> */}
+        <span className="text-sm">{epic.resumen}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <Badge className="bg-blue-900 hover:bg-blue-600">Epic</Badge>
+        {/* <span className="text-sm text-muted-foreground">arreglar</span>
+        <Avatar className="h-6 w-6">
+          <AvatarFallback>A</AvatarFallback>
+        </Avatar> */}
+      </div>
+    </div>
+  )
 }
 
 const SortableTaskKB = ({ task }: { task: Tarea }) => {
@@ -87,6 +168,146 @@ const SortableEpicBoard = ({ task }: { task: Epic }) => {
       </CardContent>
     </Card>
   )
+}
+
+const SprintColumn = ({ sprint, tareas, onAddTask }: { sprint: Sprint, tareas: Tarea[], onAddTask: (idSprint:string) => void }) => {
+  const { setNodeRef, isOver } = useDroppable({
+    id: sprint.idSprint || '',
+  });
+
+  return (
+    <Card ref={setNodeRef} className="mb-4">
+
+
+      <Collapsible>
+        <CollapsibleTrigger className="flex items-center justify-between w-full p-4">
+          <div className="flex items-center gap-2">
+            <ChevronDown className="h-4 w-4" />
+            <span>{sprint.nombre}</span>
+            {/* <span className="text-sm text-muted-foreground">{sprint.idSprint}</span> */}
+            <Button variant="ghost" size="sm">
+              <Calendar className="h-4 w-4 mr-2" />
+              Añadir fechas
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">{tareas.filter(task => task.idSprint == sprint.idSprint).length} incidencias</span>
+            <Button variant="ghost" size="sm">
+              Iniciar sprint
+            </Button>
+            <Button variant="ghost" size="icon" aria-label="More options">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          {sprint.tareas?.length === 0 ? (
+            <div className="p-4 text-center">
+              <p className="text-sm text-muted-foreground">
+                No hay tareas en este sprint.
+              </p>
+            </div>
+          ) : (
+
+            <SortableContext items={tareas.map((task) => task.idTarea)}>
+              {tareas.map((task) => (
+                <SortableTask key={task.idTarea} task={task} />
+              ))}
+            </SortableContext>
+          )}
+          <div className="p-4 border-t">
+            <Button onClick={() => onAddTask(sprint.idSprint!)} variant="ghost" size="sm" className="w-full justify-start">
+              <Plus className="h-4 w-4 mr-2" /> Crear incidencia
+            </Button>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
+  );
+}
+
+const BacklogColumn = ({ tareas, onAddTask }: { tareas: Tarea[], onAddTask: () => void }) => {
+  const { setNodeRef, isOver } = useDroppable({
+    id: '',
+  });
+
+  return (
+    <Card ref={setNodeRef}>
+      <CardHeader className="p-3">
+        <div className="flex justify-between items-center">
+          <CardTitle className="text-sm font-medium">Backlog</CardTitle>
+          <Button variant="ghost" size="icon" className="h-6 w-6">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="text-xs text-gray-500">{tareas.filter(task => task.idSprint == '').length} issues</div>
+      </CardHeader>
+      <CardContent className="p-2">
+        {tareas.filter(task => task.idSprint == '').length === 0 ? (
+          <div className="p-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              Tu backlog está vacío.
+            </p>
+          </div>
+        ) : (
+          <SortableContext items={tareas.filter(task => task.idSprint == '').map(task => task.idTarea)}>
+            {tareas.filter(task => task.idSprint == '').map((task) => (
+              <SortableTask key={task.idTarea} task={task} />
+            ))}
+
+          </SortableContext>
+        )}
+        <div className="p-4 border-t">
+          <Button onClick={onAddTask} variant="ghost" size="sm" className="w-full justify-start">
+            <Plus className="h-4 w-4 mr-2" /> Crear incidencia
+          </Button>
+        </div>
+
+      </CardContent>
+      {/* <Collapsible>
+        <CollapsibleTrigger className="flex items-center justify-between w-full p-4">
+          <div className="flex items-center gap-2">
+            <ChevronDown className="h-4 w-4" />
+            <span>Backlog</span>
+            <Button variant="ghost" size="sm">
+              <Calendar className="h-4 w-4 mr-2" />
+              Añadir date
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">{tareas.filter(task => task.idSprint == '').length} incidencias</span>
+            <Button variant="ghost" size="sm">
+              Iniciar sprint
+            </Button>
+            <Button variant="ghost" size="icon" aria-label="More options">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          {tareas.filter(task => task.idSprint == '').length === 0 ? (
+            <div className="p-4 text-center">
+              <p className="text-sm text-muted-foreground">
+                Tu backlog está vacío.
+              </p>
+            </div>
+          ) : (
+            <SortableContext items={tareas.filter(task => task.idSprint == '').map(task => task.idTarea)}>
+              {tareas.filter(task => task.idSprint == '').map((task) => (
+                <SortableTask key={task.idTarea} task={task} />
+              ))}
+
+            </SortableContext>
+          )}
+          <div className="p-4 border-t">
+            <Button onClick={onAddTask} variant="ghost" size="sm" className="w-full justify-start">
+              <Plus className="h-4 w-4 mr-2" /> Crear incidencia
+            </Button>
+          </div>
+        </CollapsibleContent>
+      </Collapsible> */}
+    </Card>
+  );
 }
 
 const Column = ({ column, tasks, onAddTask }: { column: Column, tasks: Tarea[], onAddTask: (columnId: string, content: string) => void }) => {
@@ -145,57 +366,38 @@ const Column = ({ column, tasks, onAddTask }: { column: Column, tasks: Tarea[], 
 };
 
 
-const ColumnEpic = ({ column, epics, onAddEpic }: { column: ColumnEpic, epics: Epic[], onAddEpic: (columnId: string, content: string) => void }) => {
+const ColumnEpic = ({ column, epics, onAddEpic }: { column: ColumnEpic, epics: Epic[], onAddEpic: (idSprint:string) => void }) => {
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
   });
 
-  const [newEpicContent, setNewEpicContent] = useState('');
-
-  const handleAddEpic = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newEpicContent.trim()) {
-      onAddEpic(column.id, newEpicContent.trim());
-      setNewEpicContent('');
-    }
-  };
-
   return (
-    <Card
-      ref={setNodeRef}
-      className={`w-72 mx-2 bg-gray-100 border-t-4 ${isOver ? 'border-t-blue-700' : 'border-t-blue-500'}`}
-    >
-      <CardHeader className="p-3">
-        <div className="flex justify-between items-center">
-          <CardTitle className="text-sm font-medium">{column.title}</CardTitle>
-          <Button variant="ghost" size="icon" className="h-6 w-6">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="text-xs text-gray-500">{epics.length} issues</div>
-      </CardHeader>
-      <CardContent className="p-2">
-        <SortableContext
-          items={epics.map(task => task.idEpic)}
-          strategy={verticalListSortingStrategy}
-        >
-          {epics.map((task) => (
-            <SortableEpicBoard key={task.idEpic} task={task} />
-          ))}
-        </SortableContext>
-        <form onSubmit={handleAddEpic} className="mt-2">
-          <Input
-            type="text"
-            value={newEpicContent}
-            onChange={(e) => setNewEpicContent(e.target.value)}
-            placeholder="Add a task..."
-            className="mb-2"
-          />
-          <Button type="submit" className="w-full">
-            <PlusCircle className="mr-2 h-4 w-4" /> Add
-          </Button>
-        </form>
-      </CardContent>
+    <Card className="p-4">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-semibold">Epic</h2>
+        <Button variant="ghost" size="sm" aria-label="Add epic">
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="space-y-2">
+        <div className="text-sm text-muted-foreground">Incidencias sin epic</div>
+        {column.epics.length === 0 ? (
+          <div className="p-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              No hay epics en este proyecto.
+            </p>
+          </div>
+        ) : (
+          <SortableContext items={column.epics.map(task => task.idEpic)} strategy={verticalListSortingStrategy}>
+            {column.epics.map((task) => (
+              <SortableEpic key={task.idEpic} epic={task} />
+            ))}
+          </SortableContext>
+        )}
+        <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => onAddEpic('')}>
+          <Plus className="h-4 w-4 mr-2" /> Crear epic
+        </Button>
+      </div>
     </Card>
   );
 };
@@ -227,80 +429,34 @@ const AddBoardForm = ({ onAddBoard }: { onAddBoard: (title: string) => void }) =
   )
 }
 
-function SortableTask({ task }: { task: Tarea }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-  } = useSortable({ id: task.idTarea })
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  }
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      className="flex items-center justify-between p-4 bg-white border-b last:border-b-0"
-    >
-      <div className="flex items-center gap-2">
-        <input type="checkbox" className="rounded" aria-label={`Mark ${task.titulo} as complete`} />
-        <span className="text-sm font-medium">{task.idTarea}</span>
-        <span className="text-sm">{task.titulo}</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground">TAREAS POR HACER</span>
-        <Avatar className="h-6 w-6">
-          <AvatarFallback>U</AvatarFallback>
-        </Avatar>
-      </div>
-    </div>
-  )
-}
 
 export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
   const [columns, setColumns] = useState<Column[]>([
-    { id: 'todo', title: 'To Do', tasks: [{ idTarea: 'task1', titulo: 'Design new feature' }, { idTarea: 'task2', titulo: 'Update documentation' }] },
-    { id: 'inProgress', title: 'In Progress', tasks: [{ idTarea: 'task3', titulo: 'Refactor authentication system' }] },
+    { id: 'todo', title: 'To Do', tasks: [{ idTarea: 'task1', titulo: 'Design new feature', idSprint: '1', orden: 1 }, { idTarea: 'task2', titulo: 'Update documentation', idSprint: '', orden: 2 }] },
+    { id: 'inProgress', title: 'In Progress', tasks: [{ idTarea: 'task3', titulo: 'Refactor authentication system', idSprint: '', orden: 3 }] },
     { id: 'done', title: 'Done', tasks: [] },
   ])
+
+
+  const [columnEpic, setColumnEpic] = useState<ColumnEpic>({ id: 'epic', title: 'Epic', epics: [] })
+
+
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [activeIdT, setActiveIdT] = useState<string | null>(null)
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
 
   const workspaceId = proyecto.idWorkspace;
+  const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const { data: session, status } = useSession();
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("backlog")
-  console.log(isLoading);
-  const [boards, setBoards] = useState<Board[]>([
-    {
-      id: "sprint1",
-      title: "Tablero Sprint 1",
-      tasks: []
-    },
-    {
-      id: "sprint2",
-      title: "Tablero Sprint 2",
-      tasks: [
-        { idTarea: "SCRUM-3", titulo: "tarea1", estado: "TODO" },
-        { idTarea: "SCRUM-2", titulo: "algo", estado: "TODO" },
-        { idTarea: "SCRUM-4", titulo: "tarea2", estado: "TODO" },
-        { idTarea: "SCRUM-1", titulo: "historia sobre algo", estado: "TODO" },
-      ]
-    },
-    {
-      id: "backlog",
-      title: "Backlog",
-      tasks: []
-    }
-  ])
+
+  const [tareas, setTareas] = useState<Tarea[]>([])
+  const [sprints, setSprints] = useState<Sprint[]>([])
+
+  const [sprintSelected, setSprintSelected] = useState<string>("")
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -315,8 +471,38 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
 
   }, [session, status, router, proyecto.idUsuarios]);
 
-  const handleOpenModalTask = () => {
+  useEffect(() => {
+    if (!proyecto.idProyecto) return;
+
+    getEpicsByIdProyecto(proyecto.idProyecto).then(setColumnEpic);
+  }, [proyecto]);
+
+  useEffect(() => {
+    if (!proyecto.idProyecto) return;
+
+    getUsuariosByIds(proyecto.idUsuarios)
+      .then(setUsuarios);
+  }, [proyecto]);
+
+  useEffect(() => {
+    if (!proyecto.idProyecto) return;
+
+    getTareasByIdProyecto(proyecto.idProyecto)
+      .then((fetchedTareas) => {
+        // Ordenar las tareas por el campo 'orden' de forma ascendente
+        fetchedTareas.sort((a, b) => Number(a.orden) - Number(b.orden));
+        setTareas(fetchedTareas);
+      });
+  }, [proyecto, tareas]);
+
+  useEffect(() => {
+    if (!proyecto.idProyecto) return;
+    getSprintsByIdProyecto(proyecto.idProyecto).then(setSprints);
+  }, [proyecto, sprints]);
+
+  const handleOpenModalTask = (idSprint: string) => {
     setIsTaskModalOpen(true)
+    setSprintSelected(idSprint)
   }
 
 
@@ -327,15 +513,18 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
     })
   )
 
-  const handleDragStart = (event: DragStartEvent) => {
+  const handleDragStartKB = (event: DragStartEvent) => {
     const { active } = event
     setActiveId(String(active.id)) // Convertir a string
   }
 
 
-  const handleDragOver = (event: DragOverEvent) => {
+  const handleDragOverKB = (event: DragOverEvent) => {
     const { active, over } = event
     if (!over) return
+
+    console.log('active:', active.id);
+    console.log('over:', over.id);
 
     const activeColumn = columns.find(col => col.tasks.some(task => task.idTarea === active.id))
     const overColumn = columns.find(col => col.id === over.id || col.tasks.some(task => task.idTarea === over.id))
@@ -361,12 +550,19 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
     const { active, over } = event
     if (!over) return
 
+    console.log('active:', active.id);
+    console.log('over:', over.id);
+
     const activeColumn = columns.find(col => col.tasks.some(task => task.idTarea === active.id))
     const overColumn = columns.find(col => col.id === over.id || col.tasks.some(task => task.idTarea === over.id))
+
+    console.log('activeColumn:', activeColumn);
+    console.log('overColumn:', overColumn);
 
     if (!activeColumn || !overColumn) return
 
     if (activeColumn !== overColumn) {
+      console.log('tuki2');
       setColumns(prev => {
         const activeTask = activeColumn.tasks.find(task => task.idTarea === active.id)!
         return prev.map(col => {
@@ -383,15 +579,20 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
       const oldIndex = activeColumn.tasks.findIndex(task => task.idTarea === active.id)
       const newIndex = activeColumn.tasks.findIndex(task => task.idTarea === over.id)
 
+      console.log('oldIndex:', oldIndex);
+      console.log('newIndex:', newIndex);
+
       setColumns(prev => {
         const newTasks = arrayMove(activeColumn.tasks, oldIndex, newIndex)
         return prev.map(col => {
           if (col.id === activeColumn.id) {
+            console.log('col:', col);
             return { ...col, tasks: newTasks }
           }
           return col
         })
       })
+      console.log('columns:', columns);
     }
 
     setActiveId(null)
@@ -409,77 +610,298 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
   const addTask = (columnId: string, content: string) => {
     const newTask: Tarea = {
       idTarea: `task-${Date.now()}`,
-      titulo: content
+      titulo: content,
+      idSprint: columnId,
+      orden: 1
     }
     setColumns(prev => prev.map(col =>
       col.id === columnId ? { ...col, tasks: [...col.tasks, newTask] } : col
     ))
   }
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const addEpic = (epic: Epic) => {
+    setColumnEpic((prev) => {
+      return { ...prev, epics: [...prev.epics, epic] }
+    });
+  }
+
+  //metodo para cuando agarras la tarea
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event
+    setActiveIdT(String(active.id)) // Convertir a string
+  }
+
+  //metodo para cuando sueltas la tarea en otro contenedor
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event
+    if (!over) return;
+
+    // const activeTask = tareas.find(task => task.idTarea === active.id);
+    const overTask = tareas.find(task => task.idTarea === over.id);
+
+    const activeColumn = sprints.find(sprint => sprint.tareas?.some(task => task.idTarea === active.id))
+    const overColumn = sprints.find(sprint => sprint.idSprint === over.id || sprint.tareas?.some(task => task.idTarea === over.id))
+
+    if (!overTask) return;
+    if (!activeColumn || !overColumn) return
+
+    // Si las tareas ya están en la misma posición o no se encontraron, no hacer nada
+
+    // Intercambia los valores de 'orden'
+    // const activeTask = activeColumn.tareas.find(task => task.idTarea === active.id)!
+    // const updatedTareas = tareas.map(task => {
+    //   if (task.idTarea === active.id) {
+    //     return { ...task, orden: overTask.orden }; // La tarea activa toma el orden de la tarea de destino
+    //   }
+    //   if (task.idTarea === over.id) {
+    //     return { ...task, orden: activeTask.orden }; // La tarea de destino toma el orden de la tarea activa
+    //   }
+    //   return task;
+    // });
+
+    // setTareas(updatedTareas);
+
+    // setSprints(prev => {
+    //   const activeTask = activeColumn.tareas.find(task => task.idTarea === active.id)
+    //   return prev.map(col => {
+    //     if (col.idSprint === activeColumn.idSprint) {
+    //       return { ...col, tareas: col.tareas.filter(task => task.idTarea !== active.id) }
+    //     }
+    //     if (col.idSprint === overColumn.idSprint) {
+    //       return { ...col, tareas: [...col.tareas, activeTask] }
+    //     }
+    //     return col
+    //   })
+    // });
+
+  }
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    // const activeTask = tareas.find(task => task.idTarea === active.id);
+    // const overTask = tareas.find(task => task.idTarea === over.id);
+    // const overColumnId = overTask ? (overTask.idSprint) : "";
+
+    // const activeTask = tareas.find(task => task.idTarea === active.id);
+    // const overTask = tareas.find(task => task.idTarea === over.id);
+    const activeColumn = sprints.find(sprint => sprint.tareas?.some(task => task.idTarea === active.id))
+    const overColumn = sprints.find(sprint => sprint.idSprint === over.id || sprint.tareas?.some(task => task.idTarea === over.id))
+    console.log('activeColumn:', activeColumn);
+    console.log('overColumn:', overColumn);
+
+    // if (!activeTask || !overTask) return;
+    if (!activeColumn || !overColumn) return
+
+
+    if (activeColumn !== overColumn) {
+      setSprints(prev => {
+        const activeTask = activeColumn.tareas.find(task => task.idTarea === active.id)
+        return prev.map(col => {
+          if (col.idSprint === activeColumn.idSprint) {
+            return { ...col, tareas: col.tareas.filter(task => task.idTarea !== active.id) }
+          }
+          if (col.idSprint === overColumn.idSprint) {
+            return { ...col, tareas: [...col.tareas, activeTask] }
+          }
+          return col
+        })
+      });
+
+      const activeTaskId = active.id;
+      const activeColumnId = activeColumn.idSprint;
+      const overColumnId = overColumn.idSprint;
+      console.log('activeTaskId:', activeTaskId);
+      console.log('overColumnId:', overColumnId);
+      await updateTaskSprint(String(activeTaskId), String(overColumnId), String(activeColumnId));
+
+    } else {
+      // console.log('tuki');
+      const oldIndex = activeColumn.tareas.findIndex(task => task.idTarea === active.id);
+      const newIndex = activeColumn.tareas.findIndex(task => task.idTarea === over.id);
+
+      setSprints(prev => {
+        const newTasks = arrayMove(activeColumn.tareas, oldIndex, newIndex);
+        return prev.map(col => {
+          if (col.idSprint === activeColumn.idSprint) {
+            console.log('col:', col);
+            return { ...col, tareas: newTasks }
+          }
+          return col
+        })
+      });
+
+      //funcion para actualizar la ubicacion de la tarea
+      // const activeTaskId = active.id;
+      // const overTaskId = over.id;
+      // console.log('activeTaskId:', activeTaskId);
+      // console.log('overTaskId:', overTaskId);
+      // // await updateTaskOrder(String(activeTaskId), String(overTaskId));
+      // // Intercambia los valores de 'orden'
+      // if (!activeTask || !overTask) return;
+      // const updatedTareas = tareas.map(task => {
+      //   if (task.idTarea === active.id) {
+      //     return { ...task, orden: overTask.orden }; // La tarea activa toma el orden de la tarea de destino
+      //   }
+      //   if (task.idTarea === over.id) {
+      //     return { ...task, orden: activeTask.orden }; // La tarea de destino toma el orden de la tarea activa
+      //   }
+      //   return task;
+      // });
+      // setTareas(updatedTareas);
+
+    }
+
+
+
+
+    // // Buscar la tarea que se está moviendo
+    // const activeTask = tareas.find(task => task.idTarea === activeTaskId);
+    // if (!activeTask) return;
+
+    // // Si la tarea ya está en la columna destino, no hacer nada
+    // const activeColumnId = activeTask.idSprint || 'backlog';
+    // if (activeColumnId === overColumnId) return;
+
+    // Actualizar Firebase con la nueva ubicación de la tarea
+    // await updateTaskSprint(String(activeTaskId), String(overColumnId) === 'backlog' ? '' : String(overColumnId));
+
+    // const activeColumn = sprints.find(sprint => sprint.tareas?.some(task => task.idTarea === active.id))
+    // const overColumn = sprints.find(sprint => sprint.idSprint === over.id || sprint.tareas?.some(task => task.idTarea === over.id))
+
+    // if (!activeColumn || !overColumn) return
+
+    // if (activeColumn !== overColumn) {
+    //   setSprints(prev => {
+    //     const activeTask = activeColumn.tareas.find(task => task.idTarea === active.id)
+    //     return prev.map(col => {
+    //       if (col.idSprint === activeColumn.idSprint) {
+    //         return { ...col, tareas: col.tareas.filter(task => task.idTarea !== active.id) }
+    //       }
+    //       if (col.idSprint === overColumn.idSprint) {
+    //         return { ...col, tareas: [...col.tareas, activeTask] }
+    //       }
+    //       return col
+    //     })
+    //   })
+    // } else {
+    //   const oldIndex = activeColumn.tareas.findIndex(task => task.idTarea === active.id)
+    //   const newIndex = activeColumn.tareas.findIndex(task => task.idTarea === over.id)
+
+    //   setSprints(prev => {
+    //     const newTasks = arrayMove(activeColumn.tareas, oldIndex, newIndex)
+    //     return prev.map(col => {
+    //       if (col.idSprint === activeColumn.idSprint) {
+    //         return { ...col, tareas: newTasks }
+    //       }
+    //       return col
+    //     })
+    //   })
+    // }
+
+    setActiveIdT(null)
+  }
+
+  const handleDragEndEpic = (event: DragEndEvent) => {
     const { active, over } = event
 
     if (active.id !== over?.id) {
-      setBoards((boards) => {
-        const oldIndex = boards.findIndex((board) =>
-          board.tasks.some((task) => task.idTarea === active.id)
-        )
-        const newIndex = boards.findIndex((board) =>
-          board.tasks.some((task) => task.idTarea === over?.id)
-        )
+      setColumnEpic((columnEpic) => {
+        const oldIndex = columnEpic.epics.findIndex((epic) => epic.idEpic === active.id)
+        const newIndex = columnEpic.epics.findIndex((epic) => epic.idEpic === over?.id)
 
-        if (oldIndex === newIndex) {
-          // If within the same board, just reorder the tasks
-          const boardIndex = oldIndex
-          const oldTaskIndex = boards[boardIndex].tasks.findIndex((task) => task.idTarea === active.id)
-          const newTaskIndex = boards[boardIndex].tasks.findIndex((task) => task.idTarea === over?.id)
+        const newEpics = arrayMove(columnEpic.epics, oldIndex, newIndex)
 
-          const newTasks = arrayMove(boards[boardIndex].tasks, oldTaskIndex, newTaskIndex)
-
-          const newBoards = [...boards]
-          newBoards[boardIndex] = { ...newBoards[boardIndex], tasks: newTasks }
-          return newBoards
-        } else {
-          // If between different boards, move the task
-          const oldBoardIndex = oldIndex
-          const newBoardIndex = newIndex
-          const taskToMove = boards[oldBoardIndex].tasks.find((task) => task.idTarea === active.id)!
-
-          const newBoards = [...boards]
-          newBoards[oldBoardIndex].tasks = newBoards[oldBoardIndex].tasks.filter((task) => task.idTarea !== active.id)
-          newBoards[newBoardIndex].tasks = [...newBoards[newBoardIndex].tasks, taskToMove]
-
-          return newBoards
-        }
+        return { ...columnEpic, epics: newEpics }
       })
     }
   }
 
   const handleCreateTask = async (incidencia: Incidencia) => {
     console.log('Crear Proyecto:', incidencia.resumen);
-    // let tarea = {};
-    // let epic = {};
+    let tarea : {
+      titulo: string,
+          descripcion: string,
+          estado: string,
+          tipo: string,
+          idUsuario: string,
+          idEpic: string,
+          idProyecto: string,
+          orden: string,
+          idSprint: string,
+    } = {
+      titulo: '',
+      descripcion: '',
+      estado: '',
+      tipo: '',
+      idUsuario: '',
+      idEpic: '',
+      idProyecto: '',
+      orden: '',
+      idSprint: '',
+    };
+    let epic:{
+      resumen: string,
+      descripcion: string,
+      idProyecto: string,
+      fechaHoraInicio: Date,
+      fechaHoraFin: Date,
+      estado: string,
+      idUsuario: string,
+      idTareas: string[],
+    } = {
+      resumen: '',
+      descripcion: '',
+      idProyecto: '',
+      fechaHoraInicio: new Date(),
+      fechaHoraFin: new Date(),
+      estado: '',
+      idUsuario: '',
+      idTareas: [],
+    };
     // Asegúrate de que todos los campos tengan valores definidos
     try {
-      if (incidencia.tipo == "Tarea") {
-        // tarea = {
-        //   titulo: incidencia.resumen,
-        //   descripcion: incidencia.descripcion,
-        //   estado: incidencia.estado,
-        //   tipo: incidencia.tipo,
-        //   asignado: incidencia.idUsuario,
-        //   idEpic: incidencia.idEpic,
-        //   idProyecto: proyecto.idProyecto
-        // }
+      if (incidencia.tipo == "Tarea" || incidencia.tipo == "Historia" || incidencia.tipo == "Error") {
+        tarea = {
+          titulo: incidencia.resumen,
+          descripcion: incidencia.descripcion,
+          estado: incidencia.estado,
+          tipo: incidencia.tipo,
+          idUsuario: incidencia.idUsuario,
+          idEpic: incidencia.idEpic,
+          idProyecto: proyecto.idProyecto || '',
+          orden: String(tareas.length + 1),
+          idSprint: sprintSelected
+        }
+
+        const tareaId = await createTask(tarea);
+        console.log('Tarea creada:', tareaId);
+        setTareas((prevTareas) => [
+          ...prevTareas,
+          { idTarea: tareaId, ...tarea }
+        ]);
 
       } else if (incidencia.tipo == "Epic") {
-        // epic = {
-        //   resumen: incidencia.resumen,
-        //   descripcion: incidencia.descripcion,
-        //   asignado: incidencia.idUsuario,
-        //   idProyecto: proyecto.idProyecto
-        // }
+        epic = {
+          resumen: incidencia.resumen,
+          descripcion: incidencia.descripcion,
+          idProyecto: proyecto.idProyecto || '',
+          fechaHoraInicio: new Date(),
+          fechaHoraFin: new Date(),
+          estado: incidencia.estado,
+          idUsuario: incidencia.idUsuario,
+          idTareas: [],
+        }
+
+        const epicId = await createEpic(epic);
+        console.log('Epic creada:', epicId);
+        setColumnEpic((prevColumnEpic) => {
+          return { ...prevColumnEpic, epics: [...prevColumnEpic.epics, { idEpic: epicId, ...epic }] }
+        });
       }
+
+
 
     } catch (error) {
       console.error('Error al crear la tarea:', error);
@@ -511,7 +933,10 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
 
             <header className="bg-white border-b">
               <div className="flex items-center justify-between px-6 py-4">
-                <h1 className="text-xl font-bold">{proyecto.nombre}</h1>
+                <div className="flex flex-col">
+                  <h1 className="text-xl font-bold">{proyecto.nombre}</h1>
+                  <p>{proyecto.descripcion}</p>
+                </div>
                 <div className="flex items-center gap-4">
                   <Avatar className="h-8 w-8">
                     <AvatarImage src="/placeholder.svg" alt="User avatar" />
@@ -537,138 +962,84 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
               </Tabs>
             </header>
 
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              {activeTab === "backlog" && (
-                <div className="flex gap-6 p-6">
+
+            {activeTab === "backlog" && (
+              <div className="flex gap-6 p-6">
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndEpic}>
                   <div className="w-64">
-                    <Card className="p-4">
-                      <div className="flex items-center justify-between mb-4">
-                        <h2 className="font-semibold">Epic</h2>
-                        <Button variant="ghost" size="sm" aria-label="Add epic">
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="text-sm text-muted-foreground">Incidencias sin epic</div>
-                        <DndContext
-                          sensors={sensors}
-                          collisionDetection={closestCorners}
-                          onDragStart={handleDragStart}
-                          onDragOver={handleDragOver}
-                          onDragEnd={handleDragEndKB}
-                        >
-                          <div className="flex overflow-x-auto pb-4 gap-4">
-                              <ColumnEpic column={column} tasks={epic.tasks} onAddTask={addTask} />
-                          </div>
-                          <DragOverlay>
-                            {activeId ? (
-                              <Card className="w-64 mb-2 cursor-move bg-white shadow-md">
-                                <CardContent className="p-3 text-sm">
-                                  {columns.flatMap(col => col.tasks).find(task => task.idTarea === activeId)?.titulo}
-                                </CardContent>
-                              </Card>
-                            ) : null}
-                          </DragOverlay>
-                        </DndContext>
-                        <Button variant="ghost" size="sm" className="w-full justify-start">
-                          <Plus className="h-4 w-4 mr-2" /> Crear epic
-                        </Button>
-                      </div>
-                    </Card>
+                    <ColumnEpic column={columnEpic} epics={columnEpic.epics} onAddEpic={handleOpenModalTask} />
+                  </div>
+                </DndContext>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCorners}
+                  onDragOver={handleDragOver}
+                  onDragEnd={handleDragEnd}
+                >
+                  <div className="flex-1 flex-col overflow-y-auto pb-4 gap-4">
+                    {sprints
+                      .slice() // Hacemos una copia del array para no modificar el original
+                      .sort((a, b) => (a.nombre === "Backlog" ? 1 : b.nombre === "Backlog" ? -1 : 0)) // Mueve "Backlog" al final
+                      .map((sprint) => (
+                        <SprintColumn
+                          key={sprint.idSprint}
+                          sprint={sprint}
+                          tareas={sprint.tareas.map((tarea) => ({
+                            ...tarea,
+                            usuario: usuarios.find((u) => u.idUsuario === tarea.idUsuario) || null, // Asigna el usuario correcto
+                          }))}
+                          onAddTask={handleOpenModalTask}
+                        />
+                      ))}
                   </div>
 
-                  <div className="flex-1 space-y-4">
-                    {boards.map((board) => (
-                      <Card key={board.id}>
-                        <Collapsible>
-                          <CollapsibleTrigger className="flex items-center justify-between w-full p-4">
-                            <div className="flex items-center gap-2">
-                              <ChevronDown className="h-4 w-4" />
-                              <span>{board.title}</span>
-                              <Button variant="ghost" size="sm">
-                                <Calendar className="h-4 w-4 mr-2" />
-                                Añadir fechas
-                              </Button>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-muted-foreground">{board.tasks.length} incidencias</span>
-                              <Button variant="ghost" size="sm">
-                                Iniciar sprint
-                              </Button>
-                              <Button variant="ghost" size="icon" aria-label="More options">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent>
-                            {board.tasks.length === 0 ? (
-                              <div className="p-4 text-center">
-                                <p className="text-sm text-muted-foreground">
-                                  {board.id === "backlog" ? "Tu backlog está vacío." : "No hay tareas en este sprint."}
-                                </p>
-                              </div>
-                            ) : (
-                              <SortableContext items={board.tasks.map(task => task.idTarea)} strategy={verticalListSortingStrategy}>
-                                {board.tasks.map((task) => (
-                                  <SortableTask key={task.idTarea} task={task} />
-                                ))}
-                              </SortableContext>
-                            )}
-                            <div className="p-4 border-t">
-                              <Button onClick={handleOpenModalTask} variant="ghost" size="sm" className="w-full justify-start">
-                                <Plus className="h-4 w-4 mr-2" /> Crear incidencia
-                              </Button>
-                            </div>
-                          </CollapsibleContent>
-                        </Collapsible>
-                      </Card>
-                    ))}
-                  </div>
 
+                </DndContext>
+
+              </div>
+            )}
+
+            {activeTab === "kanban" && (
+              <div className="flex gap-6 p-6">
+                {/* Tablero kanban */}
+                <div className="p-4 bg-gray-200 h-full w-full">
+                  <h1 className="text-2xl font-bold mb-4 text-gray-800">Kanban Board</h1>
+                  <AddBoardForm onAddBoard={addBoard} />
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCorners}
+                    onDragStart={handleDragStartKB}
+                    onDragOver={handleDragOverKB}
+                    onDragEnd={handleDragEndKB}
+                  >
+                    <div className="flex overflow-x-auto pb-4 gap-4">
+                      {columns.map(column => (
+                        <Column key={column.id} column={column} tasks={column.tasks} onAddTask={addTask} />
+                      ))}
+                    </div>
+                  </DndContext>
                 </div>
-              )}
-
-              {activeTab === "kanban" && (
-                <div className="flex  gap-6 p-6">
-                  {/* Tablero kanban */}
-                  <div className="p-4 bg-gray-200 h-full w-full">
-                    <h1 className="text-2xl font-bold mb-4 text-gray-800">Kanban Board</h1>
-                    <AddBoardForm onAddBoard={addBoard} />
-                    <DndContext
-                      sensors={sensors}
-                      collisionDetection={closestCorners}
-                      onDragStart={handleDragStart}
-                      onDragOver={handleDragOver}
-                      onDragEnd={handleDragEndKB}
-                    >
-                      <div className="flex overflow-x-auto pb-4 gap-4">
-                        {columns.map(column => (
-                          <Column key={column.id} column={column} tasks={column.tasks} onAddTask={addTask} />
-                        ))}
-                      </div>
-                      <DragOverlay>
-                        {activeId ? (
-                          <Card className="w-64 mb-2 cursor-move bg-white shadow-md">
-                            <CardContent className="p-3 text-sm">
-                              {columns.flatMap(col => col.tasks).find(task => task.idTarea === activeId)?.titulo}
-                            </CardContent>
-                          </Card>
-                        ) : null}
-                      </DragOverlay>
-                    </DndContext>
-                  </div>
+                {/* <DragOverlay>
+                      {activeId ? (
+                        <Card className="w-64 mb-2 cursor-move bg-white shadow-md">
+                          <CardContent className="p-3 text-sm">
+                            {columns.flatMap(col => col.tasks).find(task => task.idTarea === activeId)?.titulo}
+                          </CardContent>
+                        </Card>
+                      ) : null}
+                    </DragOverlay> */}
 
 
-                </div>
-              )}
+              </div>
+            )}
 
-            </DndContext>
+
           </div>
 
         </div>
       </div>
       {/* Modal para crear nuevo proyecto */}
-      {isTaskModalOpen && <ModalTask open={isTaskModalOpen} onOpenChange={setIsTaskModalOpen} handleCreate={handleCreateTask} workspaceId={workspaceId} />
+      {isTaskModalOpen && <ModalTask open={isTaskModalOpen} onOpenChange={setIsTaskModalOpen} handleCreate={handleCreateTask} workspaceId={workspaceId} proyectoId={proyecto.idProyecto}/>
       }
     </>
   )
