@@ -26,6 +26,7 @@ import { Incidencia } from '@/types/Incidencia'
 import { Textarea } from './ui/textarea'
 import { getEpicsByIdProyecto, getUsuariosByIdWorkspace } from '@/lib/firebaseUtils'
 import { Epic } from '@/types/Epic'
+import { Tarea } from '@/types/Tarea'
 
 
 
@@ -33,12 +34,14 @@ export default function ModalTask({
     open,
     onOpenChange,
     handleCreate,
+    handleUpdate,
     workspaceId,
     proyectoId
 }: {
     open: boolean;
     onOpenChange: (value: boolean) => void;
-    handleCreate: (incidencia: Incidencia) => void;
+    handleCreate?: (incidencia: Incidencia) => void;
+    handleUpdate?: (incidencia: Incidencia) => void;
     workspaceId?: string;
     proyectoId?: string;
 }) {
@@ -51,7 +54,11 @@ export default function ModalTask({
         idEpic: "",
         descripcion: ""
     });
+    const [tareas, setTareas] = useState<Tarea[]>([]);
     const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+
+    //obtener tareas 
+
     //obtener usuarios de un workspace por idworkspace
     useEffect(() => {
         if (workspaceId) {
@@ -83,7 +90,9 @@ export default function ModalTask({
         e.preventDefault();
         console.log('Datos enviados:', incidencia);
         if (incidencia) {
-            handleCreate(incidencia);
+            if (handleCreate) {
+                handleCreate(incidencia);
+            }
         } else {
             console.error('Equipo is undefined');
         }

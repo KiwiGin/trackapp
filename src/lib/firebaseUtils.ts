@@ -350,3 +350,14 @@ export async function createTask(task: Omit<Tarea, 'idTarea'>) {
     await updateDoc(epicRef, { idTareas: arrayUnion(taskRef.id) });
     return taskRef.id;
 }
+
+export async function deleteSprintById(idSprint: string) {
+    try {
+        const sprintRef = doc(db, "Sprint", idSprint); // Referencia al documento
+        await deleteDoc(sprintRef); // Elimina el documento
+        console.log(`Sprint con ID ${idSprint} eliminado exitosamente.`);
+    } catch (error) {
+        console.error(`Error al eliminar el sprint con ID ${idSprint}:`, error);
+        throw error; // Re-lanzar el error para manejarlo donde se llame la función
+    }
+}
