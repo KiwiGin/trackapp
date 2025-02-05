@@ -5,7 +5,7 @@ import { Chat, Channel, ChannelHeader, MessageInput, MessageList, Thread, Window
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from 'next/navigation'
 import 'stream-chat-react/dist/css/v2/index.css'
-import { getEquiposByIdUsuario } from '@/lib/firebaseUtils';
+// import { getEquiposByIdUsuario } from '@/lib/firebaseUtils';
 
 const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY!;
 
