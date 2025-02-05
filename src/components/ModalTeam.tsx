@@ -72,6 +72,8 @@ export default function ModalTeam({
             }));
         } catch (error) {
             console.error('Error al agregar miembro:', error);
+            alert('El usuario no existe');
+
         }
     }
 

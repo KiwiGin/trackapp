@@ -3,9 +3,9 @@ import React from 'react'
 
 function Chat() {
   return (
-    <>
-        <ChatPage />
-    </>
+    <div className='flex flex-col h-full'>
+      <ChatPage />
+    </div>
   )
 }
 

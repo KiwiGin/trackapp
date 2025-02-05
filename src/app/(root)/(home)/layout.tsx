@@ -70,7 +70,7 @@ const HomeLayout = ({ children }: { children: ReactNode }) => {
                 <Sidebar handleNewWorkspace={handleOpenModal} workspaces={workspaces} />
                 <section className='flex min-h-screen w-full flex-1 flex-col pb-6  max-md:pb-10'>
                 <Header user={user} />
-                    <div className='w-full'>
+                    <div className='w-full h-full'>
                         {children}
                     </div>
                     {/* Modal para crear nuevo Workspace */}

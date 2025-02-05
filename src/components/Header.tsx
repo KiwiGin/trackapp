@@ -17,9 +17,12 @@ function Header({ user }: { user?: Usuario }) {
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <Button variant="ghost" className="flex items-center space-x-2 text-white">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src="https://www.example.com/user-avatar.jpg" />
-                  <AvatarFallback>U</AvatarFallback>
+                <Avatar className='w-8 h-8'>
+                  {user?.linkImg ? (
+                  <AvatarImage src={user?.linkImg} alt={user?.nombre} className='rounded-full object-fill' />
+                  ) : (
+                  <AvatarFallback>{user?.nombre?.charAt(0)}</AvatarFallback>
+                  )}
                 </Avatar>
                 {user?.usuario}
               </Button>

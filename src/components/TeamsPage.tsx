@@ -74,15 +74,7 @@ function TeamsPage() {
                             <div className="text-lg font-semibold">Teams</div>
                             <div className="flex items-center space-x-4">
 
-                                <div className="flex items-center">
-                                    <Image
-                                        src="/userpic.jpg"
-                                        alt="User Profile"
-                                        width={30}
-                                        height={30}
-                                        className="rounded-full"
-                                    />
-                                </div>
+                               
                                 <button onClick={handleOpenTeamModal} className="bg-[#2B2D42] text-white px-4 py-2 rounded-full">+ New Team</button>
                                 {/* botones*/}
                                 <a href="#" className="px-4 py-2 hover:bg-gray-800 flex items-center">

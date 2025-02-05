@@ -25,10 +25,16 @@ import ModalTask from "./ModalTask"
 import { Incidencia } from "@/types/Incidencia"
 import { Epic } from "@/types/Epic"
 import { Sprint } from "@/types/Sprint"
-import { createEpic, createTask, deleteSprintById, getEpicsByIdProyecto, getSprintsByIdProyecto, getTareasByIdProyecto, getUsuariosByIds, updateTaskSprint } from "@/lib/firebaseUtils"
+import { createEpic, createSprint, createTask, deleteSprintById, endSprint, getEpicsByIdProyecto, getSprintsByIdProyecto, getTareasByIdProyecto, getUsuariosByIds, updateSprintById, updateTareaStatus, updateTaskSprint } from "@/lib/firebaseUtils"
 import { Usuario } from "@/types/Usuario"
 import { Badge } from "./ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu"
+import { on } from "events"
+import ModalSprint from "./ModalSprint"
+import ModalStartSprint from "./ModalStartSprint"
+import Image from "next/image"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select"
+import { Skeleton } from "./ui/skeleton"
 
 type Column = {
   id: string
@@ -144,7 +150,7 @@ const SortableTaskKB = ({ task }: { task: Tarea }) => {
 }
 
 
-const SprintColumn = ({ sprint, tareas, onAddTask, onClick }: { sprint: Sprint, tareas: Tarea[], onAddTask: (idSprint: string) => void, onClick: () => void }) => {
+const SprintColumn = ({ sprint, tareas, onAddTask, onClickNewSprint, onClickStartSprint, onClickUpdateTask, onClickEndSprint }: { sprint: Sprint, tareas: Tarea[], onAddTask: (idSprint: string) => void, onClickNewSprint: () => void, onClickStartSprint: (idSprint: string) => void, onClickUpdateTask: () => void, onClickEndSprint: (idSprint:string)=>void }) => {
   const { setNodeRef } = useDroppable({
     id: sprint.idSprint || '',
   });
@@ -163,6 +169,8 @@ const SprintColumn = ({ sprint, tareas, onAddTask, onClick }: { sprint: Sprint, 
     }
   }
 
+  
+
   return (
     <Card ref={setNodeRef} className="mb-4">
 
@@ -173,38 +181,40 @@ const SprintColumn = ({ sprint, tareas, onAddTask, onClick }: { sprint: Sprint, 
             <ChevronDown className="h-4 w-4" />
             <span>{sprint.nombre}</span>
             {/* <span className="text-sm text-muted-foreground">{sprint.idSprint}</span> */}
-            <Button variant="ghost" size="sm">
-              <Calendar className="h-4 w-4 mr-2" />
-              Añadir fechas
-            </Button>
+
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">{tareas.filter(task => task.idSprint == sprint.idSprint).length} incidencias</span>
             {sprint.nombre !== 'Backlog' ? (
-            <div>
-              <Button variant="ghost" size="sm">
-              Iniciar sprint
-            </Button>
-              <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="More options">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => onEditSprint(sprint.idSprint!)}>
-                  Editar
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onDeleteSprint(sprint.idSprint!)}>
-                  Borrar
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            </div>
+              <div>
+                {sprint.estado === "Activo" ? (
+                  <Button className="bg-[#090C08] text-white hover:bg-slate-800" size="sm" onClick={() => onClickEndSprint(sprint.idSprint!)}>
+                    Finalizar sprint
+                  </Button>) : (
+                  <Button variant="outline" size="sm" onClick={() => onClickStartSprint(sprint.idSprint!)}>
+                    Iniciar sprint
+                  </Button>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" aria-label="More options">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => onEditSprint(sprint.idSprint!)}>
+                      Editar
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onDeleteSprint(sprint.idSprint!)}>
+                      Borrar
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             ) : (
-              <Button variant="ghost" size="sm">
-              Crear sprint
-            </Button>
+              <Button variant="ghost" size="sm" onClick={onClickNewSprint}>
+                Crear sprint
+              </Button>
             )}
           </div>
         </CollapsibleTrigger>
@@ -219,7 +229,7 @@ const SprintColumn = ({ sprint, tareas, onAddTask, onClick }: { sprint: Sprint, 
 
             <SortableContext items={tareas.map((task) => task.idTarea)}>
               {tareas.map((task) => (
-                <SortableTask key={task.idTarea} task={task} onClick={onClick} />
+                <SortableTask key={task.idTarea} task={task} onClick={onClickUpdateTask} />
               ))}
             </SortableContext>
           )}
@@ -273,18 +283,7 @@ const Column = ({ column, tasks, onAddTask }: { column: Column, tasks: Tarea[], 
             <SortableTaskKB key={task.idTarea} task={task} />
           ))}
         </SortableContext>
-        <form onSubmit={handleAddTask} className="mt-2">
-          <Input
-            type="text"
-            value={newTaskContent}
-            onChange={(e) => setNewTaskContent(e.target.value)}
-            placeholder="Add a task..."
-            className="mb-2"
-          />
-          <Button type="submit" className="w-full">
-            <PlusCircle className="mr-2 h-4 w-4" /> Add
-          </Button>
-        </form>
+
       </CardContent>
     </Card>
   );
@@ -358,10 +357,15 @@ const AddBoardForm = ({ onAddBoard }: { onAddBoard: (title: string) => void }) =
 
 export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
   const [columns, setColumns] = useState<Column[]>([
-    { id: 'todo', title: 'To Do', tasks: [{ idTarea: 'task1', titulo: 'Design new feature', idSprint: '1', orden: "1" }, { idTarea: 'task2', titulo: 'Update documentation', idSprint: '', orden: "2" }] },
-    { id: 'inProgress', title: 'In Progress', tasks: [{ idTarea: 'task3', titulo: 'Refactor authentication system', idSprint: '', orden: "3" }] },
-    { id: 'done', title: 'Done', tasks: [] },
+
   ])
+
+
+  // const [columns, setColumns] = useState<Column[]>([
+  //   { id: 'todo', title: 'To Do', tasks: [{ idTarea: 'task1', titulo: 'Design new feature', idSprint: '1', orden: "1" }, { idTarea: 'task2', titulo: 'Update documentation', idSprint: '', orden: "2" }] },
+  //   { id: 'inProgress', title: 'In Progress', tasks: [{ idTarea: 'task3', titulo: 'Refactor authentication system', idSprint: '', orden: "3" }] },
+  //   { id: 'done', title: 'Done', tasks: [] },
+  // ])
 
 
   const [columnEpic, setColumnEpic] = useState<ColumnEpic>({ id: 'epic', title: 'Epic', epics: [] })
@@ -369,18 +373,28 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
 
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
   const [isTaskModalUpdateOpen, setIsTaskModalUpdateOpen] = useState(false)
+  const [isNewSprintModalOpen, setIsNewSprintModalOpen] = useState(false)
+  const [isStartSprintModalOpen, setIsStartSprintModalOpen] = useState(false)
 
   const workspaceId = proyecto.idWorkspace;
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const { data: session, status } = useSession();
   const [isLoading, setIsLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [cargando, setCargando] = useState(true)
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("backlog")
 
   const [tareas, setTareas] = useState<Tarea[]>([])
   const [sprints, setSprints] = useState<Sprint[]>([])
 
-  const [sprintSelected, setSprintSelected] = useState<string>("")
+  const [sprintColumns, setSprintColumns] = useState<Record<string, Column[]>>({});
+
+  const [sprintSelected, setSprintSelected] = useState<string>("") //id del sprint seleccionado
+  const [selectedSprint, setSelectedSprint] = useState<string | null>(); //id del sprint seleccionado para las columnas kanban
+
+  const columns1 = selectedSprint ? sprintColumns[selectedSprint] : [];
+
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -398,31 +412,66 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
   useEffect(() => {
     if (!proyecto.idProyecto) return;
 
-    getEpicsByIdProyecto(proyecto.idProyecto).then(setColumnEpic);
-  }, [proyecto]);
-
-  useEffect(() => {
-    if (!proyecto.idProyecto) return;
-
     getUsuariosByIds(proyecto.idUsuarios)
       .then(setUsuarios);
-  }, [proyecto]);
-
-  useEffect(() => {
-    if (!proyecto.idProyecto) return;
-
+    getEpicsByIdProyecto(proyecto.idProyecto).then(setColumnEpic);
     getTareasByIdProyecto(proyecto.idProyecto)
       .then((fetchedTareas) => {
         // Ordenar las tareas por el campo 'orden' de forma ascendente
         fetchedTareas.sort((a, b) => Number(a.orden) - Number(b.orden));
         setTareas(fetchedTareas);
       });
-  }, [proyecto, tareas]);
+
+    getSprintsByIdProyecto(proyecto.idProyecto).then(setSprints);
+
+    setCargando(false);
+
+  }, [proyecto.idProyecto, proyecto.idUsuarios, tareas]);
 
   useEffect(() => {
-    if (!proyecto.idProyecto) return;
-    getSprintsByIdProyecto(proyecto.idProyecto).then(setSprints);
-  }, [proyecto, sprints]);
+    if (!tareas.length || !sprints.length) return;
+
+
+    // Agrupar tareas por sprint
+    const tareasPorSprint: Record<string, Tarea[]> = {};
+    tareas.forEach((tarea) => {
+      if (!tareasPorSprint[tarea.idSprint]) {
+        tareasPorSprint[tarea.idSprint] = [];
+      }
+      tareasPorSprint[tarea.idSprint].push(tarea);
+    });
+    // Crear estructura de columnas por cada sprint
+    const newSprintColumns: Record<string, Column[]> = {};
+    sprints.forEach((sprint) => {
+      if (sprint.estado === 'Activo') {
+        const tareas = sprint.idSprint ? tareasPorSprint[sprint.idSprint] || [] : [];
+
+        if (sprint.idSprint) {
+          newSprintColumns[sprint.idSprint] = [
+            {
+              id: 'todo',
+              title: 'POR HACER',
+              tasks: tareas.filter((t) => t.estado === 'POR HACER'),
+            },
+            {
+              id: 'inProgress',
+              title: 'EN PROGRESO',
+              tasks: tareas.filter((t) => t.estado === 'EN PROGRESO'),
+            },
+            {
+              id: 'done',
+              title: 'HECHO',
+              tasks: tareas.filter((t) => t.estado === 'HECHO'),
+            }];
+        };
+      }
+
+    });
+
+    setSprintColumns(newSprintColumns);
+
+
+  }, [tareas, sprints]);
 
   const handleOpenModalTask = (idSprint: string) => {
     setIsTaskModalOpen(true)
@@ -431,6 +480,36 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
 
   const handleOpenModalUpdateTask = () => {
     setIsTaskModalUpdateOpen(true)
+  }
+
+  const handleOpenModalNewSprint = () => {
+    setIsNewSprintModalOpen(true)
+  }
+
+  const handleOpenModalStartSprint = (idSprint: string) => {
+    setIsStartSprintModalOpen(true)
+    setSprintSelected(idSprint)
+  }
+
+  const handleEndSprint = async (idSprint: string) => {
+    console.log('Finalizar sprint:', idSprint);
+    try {
+      const config : {
+        idSprint: string,
+        estado: string
+      } = {
+        idSprint: idSprint,
+        estado: 'Finalizado'
+      }
+      await endSprint(config);
+      setSprints((prev) =>
+        prev.map((sprint) =>
+          sprint.idSprint === idSprint ? { ...sprint, estado: 'Finalizado' } : sprint
+        )
+      );
+    } catch (error) {
+      console.error('Error al finalizar el sprint:', error);
+    }
   }
 
 
@@ -442,82 +521,131 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
   )
 
   const handleDragOverKB = (event: DragOverEvent) => {
-    const { active, over } = event
-    if (!over) return
+    const { active, over } = event;
+    if (!over || !selectedSprint) return;
 
-    console.log('active:', active.id);
-    console.log('over:', over.id);
+    // console.log('active:', active.id);
+    // console.log('over:', over.id);
 
-    const activeColumn = columns.find(col => col.tasks.some(task => task.idTarea === active.id))
-    const overColumn = columns.find(col => col.id === over.id || col.tasks.some(task => task.idTarea === over.id))
+    setSprintColumns((prev) => {
+      // Copia el estado anterior
+      const newSprintColumns = { ...prev };
 
-    if (!activeColumn || !overColumn || activeColumn === overColumn) return
+      // Obtén las columnas del sprint seleccionado
+      const columns = newSprintColumns[selectedSprint];
+      if (!columns) return prev; // Si no hay columnas, no hagas nada
 
-    setColumns(prev => {
-      const activeTask = activeColumn.tasks.find(task => task.idTarea === active.id)!
-      const updatedColumns = prev.map(col => {
+      // Encuentra las columnas de origen y destino
+      const activeColumn = columns.find(col => col.tasks.some(task => task.idTarea === active.id));
+      const overColumn = columns.find(col => col.id === over.id || col.tasks.some(task => task.idTarea === over.id));
+
+      if (!activeColumn || !overColumn || activeColumn === overColumn) return prev;
+
+      // Extraer la tarea activa
+      const activeTask = activeColumn.tasks.find(task => task.idTarea === active.id);
+      if (!activeTask) return prev;
+
+      // Actualizar las columnas
+      const updatedColumns = columns.map(col => {
         if (col.id === activeColumn.id) {
-          return { ...col, tasks: col.tasks.filter(task => task.idTarea !== active.id) }
+          return { ...col, tasks: col.tasks.filter(task => task.idTarea !== active.id) };
         }
         if (col.id === overColumn.id) {
-          return { ...col, tasks: [...col.tasks, activeTask] }
+          return { ...col, tasks: [...col.tasks, activeTask] };
         }
-        return col
-      })
-      return updatedColumns
-    })
-  }
+        return col;
+      });
 
-  const handleDragEndKB = (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over) return
+      // Guardar el nuevo estado
+      newSprintColumns[selectedSprint] = updatedColumns;
+      return newSprintColumns;
+    });
+  };
+
+
+  const handleDragEndKB = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || !selectedSprint) return;
 
     console.log('active:', active.id);
     console.log('over:', over.id);
 
-    const activeColumn = columns.find(col => col.tasks.some(task => task.idTarea === active.id))
-    const overColumn = columns.find(col => col.id === over.id || col.tasks.some(task => task.idTarea === over.id))
+    let updatedTask: Tarea | undefined;
 
-    console.log('activeColumn:', activeColumn);
-    console.log('overColumn:', overColumn);
+    setSprintColumns((prev) => {
+      const newSprintColumns = { ...prev };
+      const columns = newSprintColumns[selectedSprint];
+      if (!columns) return prev;
 
-    if (!activeColumn || !overColumn) return
+      const activeColumn = columns.find(col => col.tasks.some(task => task.idTarea === active.id));
+      console.log('activeColumn:', activeColumn);
+      const overColumn = columns.find(col => col.id === over.id || col.tasks.some(task => task.idTarea === over.id));
+      console.log('overColumn:', overColumn);
 
-    if (activeColumn !== overColumn) {
-      console.log('tuki2');
-      setColumns(prev => {
-        const activeTask = activeColumn.tasks.find(task => task.idTarea === active.id)!
-        return prev.map(col => {
+      const activeTask = activeColumn?.tasks.find(task => task.idTarea === active.id);
+
+      if (!activeColumn || !overColumn) return prev;
+
+      if (activeTask?.estado !== overColumn.title) {
+        console.log('Cambio de columna');
+
+        if (!activeTask) return prev;
+
+        // Actualizar columnas
+        const updatedColumns = columns.map(col => {
           if (col.id === activeColumn.id) {
-            return { ...col, tasks: col.tasks.filter(task => task.idTarea !== active.id) }
+            //actualizar el estado de la tarea
+            updatedTask = { ...activeTask, estado: overColumn.title };
+            return { ...col, tasks: [...col.tasks.filter(task => task.idTarea !== active.id), updatedTask] };
           }
-          if (col.id === overColumn.id) {
-            return { ...col, tasks: [...col.tasks, activeTask] }
-          }
-          return col
-        })
-      })
-    } else {
-      const oldIndex = activeColumn.tasks.findIndex(task => task.idTarea === active.id)
-      const newIndex = activeColumn.tasks.findIndex(task => task.idTarea === over.id)
+          return col;
+        });
 
-      console.log('oldIndex:', oldIndex);
-      console.log('newIndex:', newIndex);
+        newSprintColumns[selectedSprint] = updatedColumns;
+        console.log('updateTareaStatus:', updatedColumns);
 
-      setColumns(prev => {
-        const newTasks = arrayMove(activeColumn.tasks, oldIndex, newIndex)
-        return prev.map(col => {
-          if (col.id === activeColumn.id) {
-            console.log('col:', col);
-            return { ...col, tasks: newTasks }
-          }
-          return col
-        })
-      })
-      console.log('columns:', columns);
+
+      } else {
+        // Movimiento dentro de la misma columna
+        const oldIndex = activeColumn.tasks.findIndex(task => task.idTarea === active.id);
+        const newIndex = activeColumn.tasks.findIndex(task => task.idTarea === over.id);
+        if (oldIndex === newIndex) return prev;
+        console.log('Reordenando tareas');
+
+
+        const newTasks = arrayMove(activeColumn.tasks, oldIndex, newIndex);
+        const updatedColumns = columns.map(col =>
+          col.id === activeColumn.id ? { ...col, tasks: newTasks } : col
+        );
+
+        newSprintColumns[selectedSprint] = updatedColumns;
+        // updateTareaStatus(active.id, over.id);
+      }
+
+      return newSprintColumns;
+    });
+
+
+    // **Actualizar en la base de datos después de modificar el estado**
+    if (updatedTask) {
+      try {
+        const resultado = await updateTareaStatus(updatedTask.idTarea, updatedTask.estado!);
+        if (resultado) {
+          // **Actualizar el estado global `tareas` con la nueva tarea**
+          setTareas((prevTareas) =>
+            prevTareas.map((t) =>
+              t.idTarea === resultado.idTarea ? { ...t, estado: resultado.estado } : t
+            )
+          )
+        } else {
+          console.error("Error al actualizar la tarea en la base de datos.");
+        }
+      } catch (error) {
+        console.error("Error en updateTareaStatus:", error);
+      }
     }
+  };
 
-  }
 
   const addBoard = (title: string) => {
     const newColumn: Column = {
@@ -554,34 +682,6 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
     if (!overTask) return;
     if (!activeColumn || !overColumn) return
 
-    // Si las tareas ya están en la misma posición o no se encontraron, no hacer nada
-
-    // Intercambia los valores de 'orden'
-    // const activeTask = activeColumn.tareas.find(task => task.idTarea === active.id)!
-    // const updatedTareas = tareas.map(task => {
-    //   if (task.idTarea === active.id) {
-    //     return { ...task, orden: overTask.orden }; // La tarea activa toma el orden de la tarea de destino
-    //   }
-    //   if (task.idTarea === over.id) {
-    //     return { ...task, orden: activeTask.orden }; // La tarea de destino toma el orden de la tarea activa
-    //   }
-    //   return task;
-    // });
-
-    // setTareas(updatedTareas);
-
-    // setSprints(prev => {
-    //   const activeTask = activeColumn.tareas.find(task => task.idTarea === active.id)
-    //   return prev.map(col => {
-    //     if (col.idSprint === activeColumn.idSprint) {
-    //       return { ...col, tareas: col.tareas.filter(task => task.idTarea !== active.id) }
-    //     }
-    //     if (col.idSprint === overColumn.idSprint) {
-    //       return { ...col, tareas: [...col.tareas, activeTask] }
-    //     }
-    //     return col
-    //   })
-    // });
 
   }
 
@@ -589,12 +689,6 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
     const { active, over } = event;
     if (!over) return;
 
-    // const activeTask = tareas.find(task => task.idTarea === active.id);
-    // const overTask = tareas.find(task => task.idTarea === over.id);
-    // const overColumnId = overTask ? (overTask.idSprint) : "";
-
-    // const activeTask = tareas.find(task => task.idTarea === active.id);
-    // const overTask = tareas.find(task => task.idTarea === over.id);
     const activeColumn = sprints.find(sprint => sprint.tareas?.some(task => task.idTarea === active.id))
     const overColumn = sprints.find(sprint => sprint.idSprint === over.id || sprint.tareas?.some(task => task.idTarea === over.id))
     console.log('activeColumn:', activeColumn);
@@ -662,53 +756,6 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
 
     }
 
-
-
-
-    // // Buscar la tarea que se está moviendo
-    // const activeTask = tareas.find(task => task.idTarea === activeTaskId);
-    // if (!activeTask) return;
-
-    // // Si la tarea ya está en la columna destino, no hacer nada
-    // const activeColumnId = activeTask.idSprint || 'backlog';
-    // if (activeColumnId === overColumnId) return;
-
-    // Actualizar Firebase con la nueva ubicación de la tarea
-    // await updateTaskSprint(String(activeTaskId), String(overColumnId) === 'backlog' ? '' : String(overColumnId));
-
-    // const activeColumn = sprints.find(sprint => sprint.tareas?.some(task => task.idTarea === active.id))
-    // const overColumn = sprints.find(sprint => sprint.idSprint === over.id || sprint.tareas?.some(task => task.idTarea === over.id))
-
-    // if (!activeColumn || !overColumn) return
-
-    // if (activeColumn !== overColumn) {
-    //   setSprints(prev => {
-    //     const activeTask = activeColumn.tareas.find(task => task.idTarea === active.id)
-    //     return prev.map(col => {
-    //       if (col.idSprint === activeColumn.idSprint) {
-    //         return { ...col, tareas: col.tareas.filter(task => task.idTarea !== active.id) }
-    //       }
-    //       if (col.idSprint === overColumn.idSprint) {
-    //         return { ...col, tareas: [...col.tareas, activeTask] }
-    //       }
-    //       return col
-    //     })
-    //   })
-    // } else {
-    //   const oldIndex = activeColumn.tareas.findIndex(task => task.idTarea === active.id)
-    //   const newIndex = activeColumn.tareas.findIndex(task => task.idTarea === over.id)
-
-    //   setSprints(prev => {
-    //     const newTasks = arrayMove(activeColumn.tareas, oldIndex, newIndex)
-    //     return prev.map(col => {
-    //       if (col.idSprint === activeColumn.idSprint) {
-    //         return { ...col, tareas: newTasks }
-    //       }
-    //       return col
-    //     })
-    //   })
-    // }
-
   }
 
   const handleDragEndEpic = (event: DragEndEvent) => {
@@ -724,6 +771,90 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
         return { ...columnEpic, epics: newEpics }
       })
     }
+  }
+
+  const createNewSprint = async (nombre: string, idproyecto: string) => {
+    if (loading) return; // Evita llamadas repetidas
+    setLoading(true);
+    console.log('Crear nuevo sprint');
+    try {
+      const sprint1 = await createSprint(nombre, idproyecto);
+      console.log('Sprint creado:', sprint1.idSprint);
+      setSprints((prevSprints) => {
+        const exists = prevSprints.some(s => s.idSprint === sprint1.idSprint);
+        if (exists) {
+          console.warn('El sprint ya existe en la lista:', sprint1.idSprint);
+          return prevSprints;
+        }
+        return [
+          ...prevSprints,
+          {
+            idSprint: sprint1.idSprint,
+            nombre,
+            idProyecto: idproyecto,
+            estado: sprint1.estado,
+            fechaInicio: sprint1.fechaInicio,
+            fechaFin: sprint1.fechaFin,
+            duracion: sprint1.duracion,
+            tareas: [],
+            idTareas: sprint1.idTareas
+          }
+        ];
+      });
+
+    } catch (error) {
+      console.error('Error al crear el sprint:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const startSprint = async (fechaInicio: Date, fechaFin: Date, proyectoId: string) => {
+    if (loading) return; // Evita llamadas repetidas
+    setLoading(true);
+
+    const config: {
+      fechaInicio: Date,
+      fechaFin: Date,
+      estado: string,
+      idProyecto: string,
+      idSprint: string,
+    } = {
+      fechaInicio: fechaInicio,
+      fechaFin: fechaFin,
+      estado: 'Activo',
+      idProyecto: proyectoId,
+      idSprint: sprintSelected
+    }
+    console.log('datos de la configuracion:', config);
+
+    console.log('Iniciar sprint');
+    try {
+      const sprint1 = await updateSprintById(config);
+      console.log('Sprint iniciado:', sprint1.idSprint);
+
+      //actualizar el estado del sprint en la lista
+      setSprints((prevSprints) => {
+        return prevSprints.map((sprint) => {
+          if (sprint.idSprint === sprintSelected) {
+            return {
+              ...sprint,
+              estado: sprint1.estado,
+              fechaInicio: sprint1.fechaInicio,
+              fechaFin: sprint1.fechaFin,
+              idProyecto: sprint1.idProyecto,
+            };
+          }
+          return sprint;
+        });
+      });
+
+    } catch (error) {
+      console.error('Error al iniciar el sprint:', error);
+    } finally {
+      setLoading(false);
+    }
+
   }
 
   const handleCreateTask = async (incidencia: Incidencia) => {
@@ -777,7 +908,7 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
           estado: incidencia.estado,
           tipo: incidencia.tipo,
           idUsuario: incidencia.idUsuario,
-          idEpic: incidencia.idEpic,
+          idEpic: incidencia.idEpic || '',
           idProyecto: proyecto.idProyecto || '',
           orden: String(tareas.length + 1),
           idSprint: sprintSelected
@@ -879,7 +1010,7 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
           estado: incidencia.estado,
           tipo: incidencia.tipo,
           idUsuario: incidencia.idUsuario,
-          idEpic: incidencia.idEpic,
+          idEpic: incidencia.idEpic || '',
           idProyecto: proyecto.idProyecto || '',
           orden: String(tareas.length + 1),
           idSprint: sprintSelected
@@ -923,15 +1054,27 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
             <header className="bg-white border-b">
               <div className="flex items-center justify-between px-6 py-4">
                 <div className="flex flex-col">
-                  <h1 className="text-xl font-bold">{proyecto.nombre}</h1>
-                  <p>{proyecto.descripcion}</p>
+                  {cargando ? (
+                    <Skeleton className="h-6 w-1/2" /> // Skeleton for title
+                  ) : (
+                    <>
+                      <h1 className="text-xl font-bold">PROYECTO: {proyecto?.nombre}</h1>
+                      <p>{proyecto?.descripcion}</p>
+                    </>
+                  )}
                 </div>
                 <div className="flex items-center gap-4">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src="/placeholder.svg" alt="User avatar" />
-                    <AvatarFallback>U</AvatarFallback>
-                  </Avatar>
-                  <Button variant="secondary">Scrum Configuration</Button>
+                  {cargando ? (
+                    <Skeleton className="h-8 w-8 rounded-full" /> // Skeleton for avatar
+                  ) : (
+                    usuarios.map((usuario) => (
+                      <Avatar key={usuario.idUsuario} className="h-8 w-8">
+                        <AvatarImage src={usuario.linkImg} alt={usuario.usuario} />
+                        <AvatarFallback>{usuario.usuario[0]}</AvatarFallback>
+                      </Avatar>
+                    ))
+                  )}
+                  <Button variant="secondary">Configuración de Scrum</Button>
                   <Button variant="ghost" size="icon" aria-label="Grid view">
                     <Grid className="h-5 w-5" />
                   </Button>
@@ -956,7 +1099,11 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
               <div className="flex gap-6 p-6">
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndEpic}>
                   <div className="w-64">
-                    <ColumnEpic column={columnEpic} epics={columnEpic.epics} onAddEpic={handleOpenModalTask} />
+                    {cargando ? (
+                      <Skeleton className="h-24 w-64" /> // Skeleton for ColumnEpic
+                    ) : (
+                      <ColumnEpic column={columnEpic} epics={columnEpic.epics} onAddEpic={handleOpenModalTask} />
+                    )}
                   </div>
                 </DndContext>
                 <DndContext
@@ -966,21 +1113,28 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
                   onDragEnd={handleDragEnd}
                 >
                   <div className="flex-1 flex-col overflow-y-auto pb-4 gap-4">
-                    {sprints
-                      .slice() // Hacemos una copia del array para no modificar el original
-                      .sort((a, b) => (a.nombre === "Backlog" ? 1 : b.nombre === "Backlog" ? -1 : 0)) // Mueve "Backlog" al final
-                      .map((sprint) => (
-                        <SprintColumn
-                          key={sprint.idSprint}
-                          sprint={sprint}
-                          tareas={sprint.tareas.map((tarea) => ({
-                            ...tarea,
-                            usuario: usuarios.find((u) => u.idUsuario === tarea.idUsuario) || null, // Asigna el usuario correcto
-                          }))}
-                          onAddTask={handleOpenModalTask}
-                          onClick={handleOpenModalUpdateTask}
-                        />
-                      ))}
+                    {cargando ? (
+                      <Skeleton className="h-16 w-full" /> // Skeleton for sprints
+                    ) : (
+                      sprints
+                        .slice() // Hacemos una copia del array para no modificar el original
+                        .sort((a, b) => (a.nombre === "Backlog" ? 1 : b.nombre === "Backlog" ? -1 : 0)) // Mueve "Backlog" al final
+                        .map((sprint) => (
+                          <SprintColumn
+                            key={sprint.idSprint}
+                            sprint={sprint}
+                            tareas={sprint.tareas.map((tarea) => ({
+                              ...tarea,
+                              usuario: usuarios.find((u) => u.idUsuario === tarea.idUsuario) || null, // Asigna el usuario correcto
+                            }))}
+                            onAddTask={handleOpenModalTask}
+                            onClickNewSprint={handleOpenModalNewSprint}
+                            onClickUpdateTask={handleOpenModalUpdateTask}
+                            onClickStartSprint={handleOpenModalStartSprint}
+                            onClickEndSprint={handleEndSprint}
+                          />
+                        ))
+                    )}
                   </div>
 
 
@@ -992,20 +1146,54 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
             {activeTab === "kanban" && (
               <div className="flex gap-6 p-6">
                 {/* Tablero kanban */}
-                <div className="p-4 bg-gray-200 h-full w-full">
+                <div className="p-4 bg-white h-full w-full">
                   <h1 className="text-2xl font-bold mb-4 text-gray-800">Kanban Board</h1>
-                  <AddBoardForm onAddBoard={addBoard} />
                   <DndContext
                     sensors={sensors}
                     collisionDetection={closestCorners}
                     onDragOver={handleDragOverKB}
                     onDragEnd={handleDragEndKB}
                   >
-                    <div className="flex overflow-x-auto pb-4 gap-4">
-                      {columns.map(column => (
-                        <Column key={column.id} column={column} tasks={column.tasks} onAddTask={addTask} />
-                      ))}
-                    </div>
+                    {cargando ? (
+                      <Skeleton className="h-64 w-full" /> // Skeleton for Kanban Board
+                    ) : (
+                      Object.keys(sprintColumns).length > 0 ? (
+                        <div>
+                          <div className="flex items-center gap-4 mb-4">
+                            <Select
+                              value={selectedSprint || ""}
+                              onValueChange={(value) => setSelectedSprint(value)}
+                            >
+                              <SelectTrigger id="type">
+                                <SelectValue placeholder="Sprint" />
+                              </SelectTrigger>
+
+                              <SelectContent>
+                                {Object.keys(sprintColumns).map((sprintId) => (
+                                  <SelectItem key={sprintId} value={sprintId}>
+                                    {sprints.find((s) => s.idSprint === sprintId)?.nombre || "Sprint sin nombre"}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+
+                            </Select>
+                          </div>
+                          <div className="flex overflow-x-auto pb-4 gap-4">
+                            {columns1.map(column => (
+                              <Column key={column.id} column={column} tasks={column.tasks} onAddTask={addTask} />
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center w-full h-full">
+                          <Image src={"/zorro_empty_sprint.jpg"} alt="Empty state" width={200} height={200} />
+                          <span className="text-gray-500 mb-5">Vaya, no hay sprints aún</span>
+                          <Button onClick={() => setActiveTab("backlog")}>
+                            Go to Backlog View
+                          </Button>
+                        </div>
+                      )
+                    )}
                   </DndContext>
                 </div>
                 {/* <DragOverlay>
@@ -1032,6 +1220,12 @@ export default function ProyectPage({ proyecto }: { proyecto: Proyecto }) {
       }
 
       {isTaskModalUpdateOpen && <ModalTask open={isTaskModalUpdateOpen} onOpenChange={setIsTaskModalUpdateOpen} handleUpdate={handleUpdateTask} workspaceId={workspaceId} proyectoId={proyecto.idProyecto} />
+      }
+
+      {isNewSprintModalOpen && <ModalSprint open={isNewSprintModalOpen} onOpenChange={setIsNewSprintModalOpen} handleCreate={createNewSprint} proyectoId={proyecto.idProyecto || ''} />
+      }
+
+      {isStartSprintModalOpen && <ModalStartSprint open={isStartSprintModalOpen} onOpenChange={setIsStartSprintModalOpen} handleCreate={startSprint} proyectoId={proyecto.idProyecto || ''} />
       }
     </>
   )

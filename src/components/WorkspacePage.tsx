@@ -68,6 +68,11 @@ export default function WorkspacePage({ workspace }: { workspace: Workspace }) {
 
     try {
       const projectId = await createProject(proyecto);
+      //crear Sprint 'Backlog' por defecto
+      
+
+
+
       console.log('Proyecto creado:', projectId);
       setProyectos((prevProyectos) => [
         ...prevProyectos,
@@ -96,16 +101,6 @@ export default function WorkspacePage({ workspace }: { workspace: Workspace }) {
             <div className="bg-white shadow-md p-4 flex justify-between items-center">
               <div className="text-lg font-semibold">{workspace_name}</div>
               <div className="flex items-center space-x-4">
-
-                <div className="flex items-center">
-                  <Image
-                    src="/userpic.jpg"
-                    alt="User Profile"
-                    width={30}
-                    height={30}
-                    className="rounded-full"
-                  />
-                </div>
                 <button onClick={handleOpenModalProject} className="bg-[#2B2D42] text-white px-4 py-2 rounded-full">+ New project</button>
                 {/* botones*/}
                 <a href="#" className="px-4 py-2 hover:bg-gray-800 flex items-center">

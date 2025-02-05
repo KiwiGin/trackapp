@@ -2,7 +2,7 @@ import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { getUsuariosById, getUsuariosByEmail } from "@/lib/firebaseUtils";
 
-export default NextAuth({
+export const authOptions={
     providers:[
         CredentialsProvider({
             name: 'Credentials',
@@ -35,19 +35,19 @@ export default NextAuth({
     ],
     secret: process.env.NEXTAUTH_SECRET,
     session:{
-        strategy: 'jwt',
+        strategy: 'jwt' as 'jwt',
     },
     jwt:{
         maxAge:60*60*24*7,
     },
     callbacks:{
-        async jwt({token, user}){
+        async jwt({token, user}: {token: any, user: any}){
             if(user){
                 token.id = user.id;
             }
             return token;
         },
-        async session({session, token}){
+        async session({session, token}: {session: any, token: any}){
             if(!token.id){
                 throw new Error('El id del usuario no se encuentra en token');
             }
@@ -75,4 +75,6 @@ export default NextAuth({
         signOut: '/auth/logout',
         error: '/auth/error',
     }
-})
+}
+
+export default NextAuth(authOptions)

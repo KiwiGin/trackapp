@@ -1,134 +1,161 @@
 'use client'
-import React, { useState } from 'react'
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Search, Phone, Video, MoreVertical, Paperclip, Send } from "lucide-react"
+import React, { useEffect, useState } from 'react'
+import { StreamChat } from "stream-chat";
+import { Chat, Channel, ChannelHeader, MessageInput, MessageList, Thread, Window, ChannelList } from "stream-chat-react";
+import { signIn, useSession } from "next-auth/react";
+import { useRouter } from 'next/navigation'
+import 'stream-chat-react/dist/css/v2/index.css'
+import { getEquiposByIdUsuario } from '@/lib/firebaseUtils';
 
-type Message = {
-  id: number;
-  sender: string;
-  content: string;
-  timestamp: string;
-}
+const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY!;
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>([
-    { id: 1, sender: 'John Doe', content: 'como tan', timestamp: '10:30 AM' },
-    { id: 2, sender: 'Jane Smith', content: 'bien', timestamp: '10:32 AM' },
-    { id: 3, sender: 'Alice Johnson', content: 'si mecesitan ayuda me llaman', timestamp: '10:35 AM' },
-  ])
-  const [newMessage, setNewMessage] = useState('')
+  const [isLoading, setIsLoading] = useState(true);
+  const [token, setToken] = useState<string | null>(null);
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [chatClient, setChatClient] = useState<StreamChat | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [channel, setChannel] = useState<ReturnType<StreamChat["channel"]> | null>(null);
 
-  const handleSendMessage = () => {
-    if (newMessage.trim()) {
-      const newMsg: Message = {
-        id: messages.length + 1,
-        sender: 'You',
-        content: newMessage,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }
-      setMessages([...messages, newMsg])
-      setNewMessage('')
+  // Manejar autenticación y redirección
+  useEffect(() => {
+    if (status === 'loading') return;
+
+    if (!session) {
+      signIn();
+    } else if (session && status !== 'authenticated') {
+      router.push('/');
+    } else {
+      setIsLoading(false);
     }
-  }
+  }, [session, status, router]);
+
+  // Obtener el token
+  useEffect(() => {
+    async function fetchToken() {
+      const res = await fetch("/api/chat-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: session?.user?.id }),
+      });
+
+      const data = await res.json();
+      if (res.ok) setToken(data.token);
+      else console.error("Error obteniendo el token:", data.error);
+    }
+
+    if (session?.user?.id) {
+      fetchToken();
+    }
+  }, [session?.user?.id]);
+
+  
+
+  // Configurar el cliente y conectar al usuario
+  useEffect(() => {
+    async function setupChat() {
+      if (!token || isConnected) return;
+
+      // Crear una nueva instancia del cliente
+      const client = StreamChat.getInstance(apiKey);
+
+      try {
+        await client.connectUser(
+          {
+            id: session!.user.id,
+            name: session!.user.nombre,
+            image: session!.user.linkImg,
+          },
+          token
+        );
+
+        const channel = client.channel("messaging", "travel", {
+          name: "Awesome channel about traveling",
+        });
+
+        // Obtener los equipos del usuario y crear chats grupales
+        // await createGroupChatsForTeams(client);
+        setChannel(channel);
+        setChatClient(client);
+        setIsConnected(true);
+      } catch (error) {
+        console.error('Error conectando al usuario:', error);
+      }
+    } 
+
+    setupChat();
+  }, [token, session, isConnected]);
+
+  // // Función para crear los chats grupales
+  // async function createGroupChatsForTeams(client: StreamChat) {
+  //   if (!session?.user?.id) return;
+
+  //   try {
+  //     // Obtener los equipos del usuario
+  //     const userTeams = await getEquiposByIdUsuario(session!.user.id);
+
+  //     // Si el usuario pertenece a al menos un equipo
+  //     if (userTeams.length > 0) {
+  //       // Iterar sobre cada equipo
+  //       for (const team of userTeams) {
+  //         const teamId = team.idEquipo;
+  //         const members = team.miembros.map((member: { idUsuario: string }) => member.idUsuario); // Obtener los miembros del equipo
+  //         console.log('EQUIPO:', teamId);
+  //         console.log('MIEMBROS:', members);
+
+  //         const existingChannel = client.channel('messaging', teamId);
+
+  //         const channel = client.channel('messaging', teamId, {
+  //           name: `Chat grupal del equipo ${teamId}`,
+  //           image: 'https://getstream.io/random_svg/?name=' + teamId,
+  //           members: members // Asegúrate de incluir al usuario en los miembros
+  //         });
+
+  //         await channel.watch()
+
+  //         // Opcional: enviar un mensaje de bienvenida
+  //         await channel.sendMessage({
+  //           text: '¡Bienvenidos al chat grupal!',
+  //         });
+
+  //         // Establecer el canal como activo
+  //         // Añadir el canal al array de canales
+  //         setChannel(prevChannels => (prevChannels ? [...prevChannels, channel] : [channel])); // Establecer el canal para la interfaz de usuario
+
+  //       }
+  //     } else {
+  //       console.log('El usuario no pertenece a ningún equipo.');
+  //     }
+  //   } catch (error) {
+  //     console.error('Error creando los chats grupales:', error);
+  //   }
+  // }
+
+
+
+  if (isLoading || !isConnected) return <div>Conectando al chat...</div>;
 
   return (
-    <div className="flex h-full bg-gray-100">
-      {/* Sidebar */}
-      <div className="w-64 bg-white border-r">
-        <div className="p-4">
-          <Input placeholder="Search chats" className="mb-4" />
-          <h2 className="text-lg font-semibold mb-2">Recent Chats</h2>
-          <div className="space-y-2">
-            {['John Doe', 'Jane Smith', 'Alice Johnson'].map((name) => (
-              <Button key={name} variant="ghost" className="w-full justify-start">
-                <Avatar className="w-8 h-8 mr-2">
-                  <AvatarImage src={`/placeholder.svg?height=32&width=32`} alt={name} />
-                  <AvatarFallback>{name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                </Avatar>
-                {name}
-              </Button>
-            ))}
+    <div className="flex flex-col h-full">
+      <Chat client={chatClient!} theme="messaging light">
+        <div className="flex flex-row h-full">
+          <div className="flex-1 flex-col w-full">
+            <ChannelList />
+          </div>
+          <div className="flex-1 flex-col w-full">
+            <Channel channel={channel!}>
+              <Window>
+                <ChannelHeader />
+                <MessageList />
+                <MessageInput />
+              </Window>
+              <Thread />
+            </Channel>
+
           </div>
         </div>
-      </div>
-
-      {/* Main chat area */}
-      <div className="flex-1 flex flex-col">
-        {/* Chat header */}
-        <div className="bg-white p-4 flex items-center justify-between border-b">
-          <div className="flex items-center">
-            <Avatar className="w-10 h-10 mr-3">
-              <AvatarImage src="/placeholder.svg?height=40&width=40" alt="John Doe" />
-              <AvatarFallback>JD</AvatarFallback>
-            </Avatar>
-            <div>
-              <h2 className="text-lg font-semibold">John Doe</h2>
-              <p className="text-sm text-gray-500">Online</p>
-            </div>
-          </div>
-          <div className="flex space-x-2">
-            <Button variant="ghost" size="icon">
-              <Search className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon">
-              <Phone className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon">
-              <Video className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon">
-              <MoreVertical className="h-5 w-5" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Messages */}
-        <ScrollArea className="flex-1 p-4">
-          {messages.map((message) => (
-            <Card key={message.id} className="mb-4">
-              <CardContent className="p-3">
-                <div className="flex items-start space-x-2">
-                  <Avatar className="w-8 h-8">
-                    <AvatarImage src={`/placeholder.svg?height=32&width=32`} alt={message.sender} />
-                    <AvatarFallback>{message.sender.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <p className="font-semibold">{message.sender}</p>
-                      <p className="text-xs text-gray-500">{message.timestamp}</p>
-                    </div>
-                    <p className="text-sm mt-1">{message.content}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </ScrollArea>
-
-        {/* Message input */}
-        <div className="bg-white p-4 border-t">
-          <div className="flex items-center space-x-2">
-            <Button variant="ghost" size="icon">
-              <Paperclip className="h-5 w-5" />
-            </Button>
-            <Input 
-              placeholder="Type a message" 
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-              className="flex-1"
-            />
-            <Button onClick={handleSendMessage}>
-              <Send className="h-5 w-5 mr-2" />
-              Send
-            </Button>
-          </div>
-        </div>
-      </div>
+      </Chat>
     </div>
-  )
+  );
 }

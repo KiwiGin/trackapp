@@ -1,6 +1,6 @@
 import { db } from '@/lib/firebase';
 import { v4 as uuidv4 } from "uuid";
-import { collection, query, where, getDocs, doc, getDoc, setDoc, arrayUnion, documentId, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, setDoc, arrayUnion, documentId, deleteDoc, updateDoc, Timestamp } from 'firebase/firestore';
 // import { uploadBytes, getDownloadURL, ref } from "firebase/storage";
 import { Usuario } from '@/types/Usuario';
 import { Workspace } from '@/types/Workspace';
@@ -115,7 +115,37 @@ export async function createProject(project: Omit<Proyecto, 'idProyecto'>) {
     const workspaceRef = doc(db, "Workspace", project.idWorkspace);
     await setDoc(workspaceRef, { idProyectos: arrayUnion(projectRef.id) }, { merge: true });
 
+    //crear Sprint 'Backlog' por defecto
+    const sprintRef = doc(db, "Sprint", uuidv4());
+    await setDoc(sprintRef, {
+        nombre: 'Backlog',
+        idProyecto: projectRef.id,
+        idTareas: [],
+        fechaInicio: null,
+        fechaFin: null,
+        estado: 'Inactivo',
+        duracion: 0
+    });
+    await updateDoc(projectRef, { idSprints: arrayUnion(sprintRef.id) });
+
     return projectRef.id;
+}
+
+export async function createSprint(nombre: string, idProyecto: string) {
+    const sprintRef = doc(db, "Sprint", uuidv4());
+    await setDoc(sprintRef, {
+        nombre: nombre,
+        idProyecto: idProyecto,
+        idTareas: [],
+        fechaInicio: null,
+        fechaFin: null,
+        estado: 'Inactivo',
+    });
+    const projectRef = doc(db, "Proyecto", idProyecto);
+    await updateDoc(projectRef, { idSprints: arrayUnion(sprintRef.id) });
+
+    // devuelve TODOS LOS DATOS DEL SPRINT CREADO
+    return await getSprintById(sprintRef.id);
 }
 
 //eliminar proyecto por id
@@ -297,13 +327,7 @@ export async function getSprintsByIdProyecto(idProyecto: string): Promise<Sprint
     }));
 }
 
-export async function createSprint(sprint: Omit<Sprint, 'idSprint'>) {
-    const sprintRef = doc(db, "Sprint", uuidv4());
-    await setDoc(sprintRef, sprint);
-    return sprintRef.id;
-}
-
-export async function getEpicsByIdProyecto(idProyecto: string){
+export async function getEpicsByIdProyecto(idProyecto: string) {
     const epicsRef = collection(db, "Epic");
     const epicsSnapshot = await getDocs(query(epicsRef, where("idProyecto", "==", idProyecto)));
     const epics = epicsSnapshot.docs.map(doc => ({ idEpic: doc.id, ...doc.data() } as Epic));
@@ -330,7 +354,7 @@ export async function createEpic(epic: Omit<Epic, 'idEpic'>) {
 export async function createTask(task: Omit<Tarea, 'idTarea'>) {
     const taskRef = doc(db, "Tarea", uuidv4());
     await setDoc(taskRef, task);
-    
+
     // Actualizar el sprint con el ID de la tarea
     const sprintRef = doc(db, "Sprint", task.idSprint);
     await updateDoc(sprintRef, { idTareas: arrayUnion(taskRef.id) });
@@ -344,10 +368,11 @@ export async function createTask(task: Omit<Tarea, 'idTarea'>) {
 
     //Actualizar el epic con el ID de la tarea
     if (!task.idEpic) {
-        throw new Error("El campo 'idEpic' es obligatorio para crear una tarea.");
+        console.log('No se ha asignado un epic a la tarea');
+    } else {
+        const epicRef = doc(db, "Epic", task.idEpic);
+        await updateDoc(epicRef, { idTareas: arrayUnion(taskRef.id) });
     }
-    const epicRef = doc(db, "Epic", task.idEpic);
-    await updateDoc(epicRef, { idTareas: arrayUnion(taskRef.id) });
     return taskRef.id;
 }
 
@@ -360,4 +385,123 @@ export async function deleteSprintById(idSprint: string) {
         console.error(`Error al eliminar el sprint con ID ${idSprint}:`, error);
         throw error; // Re-lanzar el error para manejarlo donde se llame la función
     }
+}
+
+export async function updateSprintById(config: { idSprint: string, fechaInicio: Date, fechaFin: Date, estado: string }) {
+    const sprintRef = doc(db, "Sprint", config.idSprint);
+    await updateDoc(sprintRef, {
+        fechaInicio: config.fechaInicio,
+        fechaFin: config.fechaFin,
+        estado: config.estado
+    });
+
+    return await getSprintById(config.idSprint);
+}
+
+export async function endSprint(config: { idSprint: string, estado: string }) {
+    const sprintRef = doc(db, "Sprint", config.idSprint);
+    await updateDoc(sprintRef, {
+        estado: config.estado
+    });
+
+    return await getSprintById(config.idSprint);
+}
+
+export async function registerUser(user: Omit<Usuario, 'idUsuario'>) {
+    const userRef = doc(db, "usuarios", uuidv4());
+    await setDoc(userRef, user);
+    return userRef.id;
+}
+
+export async function getTareaById(idTarea: string) {
+    const tareaRef = doc(db, "Tarea", idTarea);
+    const tareaSnapshot = await getDoc(tareaRef);
+    return { idTarea: idTarea, ...tareaSnapshot.data() } as Tarea;
+}
+
+export async function updateTareaStatus(idTarea: string, status: string) {
+    const tareaRef = doc(db, "Tarea", idTarea);
+    await updateDoc(tareaRef, { estado: status });
+    return await getTareaById(idTarea) as Tarea;
+}
+
+// Función para calcular el progreso de un sprint basado en tiempo
+async function calcularProgresoSprint(idSprint: string, fechaInicio: Date, fechaFin: Date): Promise<number> {
+    const now = new Date(); // Fecha actual
+
+    if (now <= fechaInicio) return 0; // Aún no inicia el sprint
+    if (now >= fechaFin) return 100; // Sprint finalizado
+
+    const totalDuracion = fechaFin.getTime() - fechaInicio.getTime();
+    const tiempoTranscurrido = now.getTime() - fechaInicio.getTime();
+
+    return Math.round((tiempoTranscurrido / totalDuracion) * 100);
+}
+
+// Función para obtener las tareas de un sprint
+export async function getTareasByIdSprint(idSprint: string): Promise<Tarea[]> {
+    const sprint = await getSprintById(idSprint);
+    return await getTareasByIds(sprint.idTareas);
+}
+
+
+export async function getSprintsChart(idUsuario: string) {
+    const workspace = await getWorkspaceByIdUsuario(idUsuario);
+    if (!workspace.length || !workspace[0].idWorkspace) {
+        throw new Error("El workspace no tiene un idWorkspace definido");
+    }
+
+    const sprints = [];
+
+    for (const w of workspace) {
+        const proyectos = await getProyectosByIdWorkspace(w.idWorkspace!);
+
+        for (const p of proyectos) {
+            const sprintsProyecto = await getSprintsByIdProyecto(p.idProyecto!);
+
+            for (const s of sprintsProyecto) {
+                const fechaInicio = s.fechaInicio instanceof Timestamp ? s.fechaInicio.toDate() : new Date(s.fechaInicio);
+                const fechaFin = s.fechaFin instanceof Timestamp ? s.fechaFin.toDate() : new Date(s.fechaFin);
+
+                const progreso = s.idSprint ? await calcularProgresoSprint(s.idSprint, fechaInicio, fechaFin) : 0;
+
+                sprints.push({
+                    idSprint: s.idSprint,
+                    nombre: s.nombre,
+                    fechaInicio,
+                    fechaFin,
+                    estado: s.estado,
+                    idProyecto: p.idProyecto,
+                    progreso
+                });
+            }
+        }
+    }
+
+    return sprints;
+}
+
+export async function getProyectosChart(idUsuario: string) {
+    const workspace = await getWorkspaceByIdUsuario(idUsuario);
+    if (!workspace.length || !workspace[0].idWorkspace) {
+        throw new Error("El workspace no tiene un idWorkspace definido");
+    }
+
+    const proyectos = [];
+
+    for (const w of workspace) {
+        const proyectosWorkspace = await getProyectosByIdWorkspace(w.idWorkspace!);
+
+        for (const p of proyectosWorkspace) {
+            const tareas = await getTareasByIdProyecto(p.idProyecto!);
+
+            proyectos.push({
+                idProyecto: p.idProyecto,
+                nombre: p.nombre,
+                tareas
+            });
+        }
+    }
+
+    return proyectos;
 }
