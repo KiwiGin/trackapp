@@ -28,10 +28,6 @@ export default function RegisterForm({ imageLink }: RegisterFormProps) {
             return
         }
 
-        // Here you would typically send a request to your API to register the user
-        // For demonstration, we'll just log the data and redirect
-        // console.log("Registration data:", { name, username, email, password, imageLink })
-
         const newUser = {
             nombre: name,
             usuario: username,

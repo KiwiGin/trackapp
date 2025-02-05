@@ -1,5 +1,6 @@
 import { collection, addDoc, getDocs, query, doc, getDoc} from "firebase/firestore"; 
-import db from "@/lib/firebase";
+import {db} from "@/lib/firebase";
+import { Usuario } from "@/types/Usuario";
 
 export default async function createUser(email: string, password: string) {
   try {
@@ -20,8 +21,6 @@ export async function getUserById(usuarioId: string) {
   if (!usuarioSnap.exists()) {
     throw new Error("Teacher not found in database");
   }
-
-  return { id: usuarioId, ...usuarioSnap.data() } as Usuario;
 }
 
 //obtener todos los usuarios

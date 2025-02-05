@@ -14,7 +14,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { ChevronDown, MoreHorizontal, Plus, Calendar, Grid, PlusCircle } from 'lucide-react'
+import { ChevronDown, MoreHorizontal, Plus, Grid, PlusCircle } from 'lucide-react'
 import { Tarea } from "@/types/Tarea"
 import { Proyecto } from "@/types/Proyecto"
 import { signIn, useSession } from "next-auth/react";
